@@ -1,0 +1,24 @@
+(* Sigma.modula
+ *
+ * Compute sum = 1 + 2 + ... + n
+ *)
+
+program Sigma;
+
+  // constants and variables
+  const n = 10;
+  var sum, index: integer;
+
+begin
+  sum := 0;
+  index := 0;
+
+  while (index <= n) do
+    begin
+      sum := sum + index;
+      index := index + 1;
+    end;
+
+  write "The sum is ";
+  writeln sum;
+end Sigma.
