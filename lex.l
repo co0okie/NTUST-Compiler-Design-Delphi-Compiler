@@ -10,8 +10,11 @@
 #define LIST strcat(buf, yytext)
 #define token(t) { LIST; printf("<%s>\n", #t); }
 #define tokenString(t, s) { LIST; printf("<%s: %s>\n", #t, s); }
+#define NEW_LINE { printf("%d: %s\n", line_no, buf); line_no++; buf[0] = '\0'; }
 
 char buf[BUF_SIZE];
+
+long int line_no = 1;
 
 typedef struct _Entry {
     char name[ID_LENGTH];
@@ -47,7 +50,7 @@ void insert(Entry* table[TABLE_SIZE], char* name) {
     }
     unsigned long hashValue = hash_djb2(name) % TABLE_SIZE;
     for (Entry* current = table[hashValue]; current; current = current->next) {
-        // avoid inserting duplicate identifiers
+        // avoid inserting duplicated identifiers
         if (strcmp(current->name, name) == 0) return;
     }
     Entry* newEntry = (Entry*) malloc(sizeof(Entry));
@@ -68,19 +71,25 @@ void dump(Entry* table[TABLE_SIZE]) {
 }
 %}
 
-%option yylineno
-
 %%
 
-\n {
-    LIST;
-    printf("%d: %s", yylineno - 1, buf);
-    buf[0] = '\0';
-}
+\n { NEW_LINE; }
 [ \t]* { LIST; }
 \/\/.* { LIST; }
-// multi-line comments
-\(\*([^*]|\*+[^)*])*\*+\) { LIST; }
+
+ /* multi-line comments */
+\(\*([^*]|\*+[^)*])*\*+\) {
+    char* begin = yytext, *end = yytext;
+    for (; *end; end++) {
+        if (*end == '\n') {
+            strncat(buf, begin, end - begin);
+            end++;
+            begin = end;
+            NEW_LINE;
+        }
+    }
+    strncat(buf, begin, end - begin);
+}
 ,               token(COMMA)
 :               token(COLON)
 \.              token(PERIOD)
@@ -95,7 +104,7 @@ void dump(Entry* table[TABLE_SIZE]) {
 \-              token(MINUS)
 \*              token(MULTIPLY)
 \/              token(DIVIDE)
-// case insensitive
+ /* case insensitive */
 (?i:mod)        token(REMAINDER)
 \<              token(LT)
 \<=             token(LE)
@@ -146,11 +155,11 @@ void dump(Entry* table[TABLE_SIZE]) {
     tokenString(IDENTIFIER, yytext);
     insert(symbolTable, yytext);
 }
-// e.g. 1.23, .5, 1e-10, 2.5E+6, -.5e-3
+ /* e.g. 1.23, .5, 1e-10, 2.5E+6, -.5e-3 */
 [+-]?[0-9]*\.[0-9]+([eE][+-]?[0-9]+)?   tokenString(REAL, yytext)
 [0-9]+          tokenString(INTEGER, yytext)
-// e.g. "hello ""world""" -> hello "world"
-\"(\"\"|[^\"])*\" {
+ /* e.g. "hello ""world""" -> hello "world" */
+\"(\"\"|[^\"\n])*\" {
     // extract the exact string content
     char str[BUF_SIZE];
     int j = 0;
@@ -167,7 +176,7 @@ void dump(Entry* table[TABLE_SIZE]) {
 }
 . {
     LIST;
-    printf("%d: %s\n", yylineno - 1, buf);
+    printf("%d: %s\n", line_no, buf);
     printf("bad character: '%s'\n", yytext);
     exit(-1);
 }
@@ -180,7 +189,7 @@ int main(int argc, char **argv) {
     yylex();
 
     // print the last line if the file doesn't end with a newline
-    if (buf[0] != '\0') printf("%d: %s\n", yylineno, buf);
+    if (buf[0] != '\0') printf("%d: %s\n", line_no, buf);
 
     printf("\n");
     dump(symbolTable);

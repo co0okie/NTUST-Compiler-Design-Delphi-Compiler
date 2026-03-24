@@ -1,3 +1,4 @@
-*.yy.c
+lex.yy.c
 *.out
 lab.c
+lex
