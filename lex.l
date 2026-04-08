@@ -74,7 +74,7 @@ void dump(Entry* table[TABLE_SIZE]) {
 %%
 
 \n { NEW_LINE; }
-[ \t]* { LIST; }
+[ \t\r]* { LIST; }
 \/\/.* { LIST; }
 
  /* multi-line comments */
