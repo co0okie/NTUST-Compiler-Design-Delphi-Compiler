@@ -1,0 +1,8 @@
+program EndIdMismatchErr;
+function Calc: integer;
+begin
+    return 1;
+end WrongName; // 預期 Semantic Error: Function end identifier does not match.
+
+begin
+end EndIdMismatchErr.

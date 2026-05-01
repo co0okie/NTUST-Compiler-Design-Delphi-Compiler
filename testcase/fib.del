@@ -1,4 +1,4 @@
-(* fib.modula
+(* fib.delphi
  *
  * This test program computes the Nth Fibonacci number
  *)
@@ -19,6 +19,7 @@ begin
 
     // compute the nth Fibonacci number
     while (n > 2) do
+    begin
       temp := Fn;
       Fn := Fn + FNminus1;
       FNminus1 := temp;

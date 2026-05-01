@@ -1,0 +1,8 @@
+program p;
+function f(a: integer, b: string, c: real, d: boolean): integer;
+begin
+    return 1;
+end f;
+begin
+    f(3, "abc", 3.14, 3 * 5);
+end p.

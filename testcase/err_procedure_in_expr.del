@@ -1,0 +1,10 @@
+program ProcAsExprErr;
+procedure DoNothing;
+begin
+end DoNothing;
+
+var x: integer;
+begin
+    // 預期 Semantic Error: Procedure cannot be used in an expression.
+    x := DoNothing() + 1; 
+end ProcAsExprErr.

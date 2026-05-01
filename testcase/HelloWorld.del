@@ -4,5 +4,5 @@ program HelloWorld;
 // Main Statements
 begin
   // Print text to the console
-  write ("Hello ""World""");
+  write ("Hello World");
 end HelloWorld.

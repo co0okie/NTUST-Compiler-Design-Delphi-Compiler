@@ -1,0 +1,9 @@
+program BlockScopeErr;
+begin
+    begin
+        var x: integer;
+        x := 1;
+    end;
+    // 預期 Semantic Error: Undeclared identifier 'x' (因為已經 pop_scope)
+    x := 2; 
+end BlockScopeErr.

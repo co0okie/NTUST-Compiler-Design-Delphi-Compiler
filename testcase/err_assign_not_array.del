@@ -1,0 +1,5 @@
+program ArrayBoundsErr;
+var arr: integer;
+begin
+    arr[1] := 5;
+end ArrayBoundsErr.

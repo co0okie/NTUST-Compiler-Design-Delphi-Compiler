@@ -23,6 +23,5 @@ begin
     write -c;
   else
     write c;
-  end;
   writeln "Hello World";
 end Example.

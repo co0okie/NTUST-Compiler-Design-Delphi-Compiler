@@ -1,0 +1,88 @@
+program TrickyTest;
+
+(* 全域宣告區：
+   測試常數型別推導、連續字串跳脫
+*)
+const
+    PI = 3.14;
+    GREETING = "Test ""String""!"; 
+
+(* 刁鑽測試 1：多變數同行宣告 (測試 IdNode Linked List) *)
+var
+    globalFlag, isDone: boolean; 
+    data: array [1, 50] of real;
+
+(* 刁鑽測試 2：多重且不同型別的參數傳遞 (測試函式簽章 Signature 收集) *)
+function Calculate(a: integer, b: integer, c: real): real;
+var
+    temp: real;
+    flag: boolean;
+begin
+    // 測試型別推導 (int * int + real => real) 以及一元負號
+    temp := -a * b + c;
+    flag := (a > b) and not (c <= 0.0);
+    
+    if flag then
+        return temp;
+    else
+        return 0.0;
+end Calculate;
+
+procedure UpdateData;
+var
+    i, j: integer;
+begin
+    i := 1;
+    while i <= 10 do
+    begin
+        (* 刁鑽測試 3：Block 狀態機嚴格順序測試 (Decls 必須在 Stmts 之前) *)
+        const FACTOR = 2;
+        var localVal: real;
+        
+        // 測試 Function 呼叫與陣列賦值
+        localVal := Calculate(i, FACTOR, 1.5); 
+        data[i] := localVal;
+        
+        (* 刁鑽測試 4：終極 Dangling-Else 巢狀陷阱 *)
+        // Parser 必須能正確將 else 配對給內層的 if，而不會引發 Shift/Reduce Conflict
+        if globalFlag then
+            if data[i] > 10.0 then
+                writeln "High";
+            else
+                writeln "Low";
+        else
+            writeln "Flag is false";
+            
+        i := i + 1;
+    end;
+end UpdateData;
+
+begin // 主程式執行區塊
+    writeln GREETING;
+    globalFlag := true;
+    isDone := false;
+    
+    repeat
+        (* 刁鑽測試 5：呼叫無參數 Procedure 時帶有空括號 *)
+        // 考驗 opt_expr_list 允許 empty 的設計是否正確
+        UpdateData(); 
+        
+        (* 刁鑽測試 6：純 Block 作用域 (Local Scope) 與變數遮蔽 (Shadowing) *)
+        begin
+            const innerConst = 100;
+            var shadowFlag: boolean; // 這個變數只存活在這個區塊
+            
+            shadowFlag := not globalFlag;
+            
+            // 測試布林邏輯與括號優先級
+            if shadowFlag or (PI < 3.0) then
+                isDone := true;
+            else
+                isDone := true; 
+        end;
+        // 離開上述區塊後，shadowFlag 與 innerConst 應該要在 pop_scope() 中被印出並消滅
+        
+    until isDone = true;
+    
+    read globalFlag;
+end TrickyTest.
