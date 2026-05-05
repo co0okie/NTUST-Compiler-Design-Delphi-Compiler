@@ -1,0 +1,14 @@
+program ErrNotSubprogram;
+
+const FACTOR = 5;
+var fakeFunc: real;
+var ans: real;
+
+begin
+    fakeFunc := 3.14;
+    // 預期 Semantic Error: 'fakeFunc' is not a function/procedure.
+    ans := fakeFunc(10); 
+    
+    // 預期 Semantic Error: 'FACTOR' is not a function/procedure.
+    FACTOR(); 
+end ErrNotSubprogram.

@@ -1,0 +1,11 @@
+program ErrFuncAsStmt;
+
+function CalculateNum(x: integer): integer;
+begin
+    return x * 2;
+end CalculateNum;
+
+begin
+    // 預期 Semantic Error: Only procedures can be called as statements.
+    CalculateNum(5); 
+end ErrFuncAsStmt.

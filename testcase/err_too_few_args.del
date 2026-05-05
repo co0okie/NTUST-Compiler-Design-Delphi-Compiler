@@ -1,0 +1,11 @@
+program ErrTooFewArgs;
+
+procedure PrintData(id: integer, score: real, pass: boolean);
+begin
+    writeln id;
+end PrintData;
+
+begin
+    // 預期 Semantic Error: Too few arguments in call to 'PrintData'.
+    PrintData(101, 95.5); 
+end ErrTooFewArgs.

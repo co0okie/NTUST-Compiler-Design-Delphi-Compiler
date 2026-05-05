@@ -1,0 +1,11 @@
+program ErrDivZero;
+
+// 預期 Semantic Error: Division by zero. (發生在 AST evaluate_binary_op 階段)
+const CRASH_VAL = 100 / (10 - 10);
+
+// 或者測試 modulo
+const CRASH_MOD = 50 % 0;
+
+begin
+    writeln CRASH_VAL;
+end ErrDivZero.

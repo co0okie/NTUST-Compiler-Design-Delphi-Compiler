@@ -1,5 +1,5 @@
 program p;
-function f(a: integer, b: string, c: real, d: boolean): integer;
+procedure f(a: integer, b: string, c: real, d: boolean);
 begin
     return 1;
 end f;

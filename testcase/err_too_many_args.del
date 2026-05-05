@@ -1,0 +1,13 @@
+program ErrTooManyArgs;
+
+var result: integer;
+
+function AddTwo(a: integer, b: integer): integer;
+begin
+    return a + b;
+end AddTwo;
+
+begin
+    // 預期 Semantic Error: Too many arguments in call to 'AddTwo'.
+    result := AddTwo(10, 20, 30);
+end ErrTooManyArgs.

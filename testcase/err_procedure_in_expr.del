@@ -1,9 +1,12 @@
 program ProcAsExprErr;
-procedure DoNothing;
-begin
-end DoNothing;
 
 var x: integer;
+
+procedure DoNothing;
+begin
+write "hello";
+end DoNothing;
+
 begin
     // 預期 Semantic Error: Procedure cannot be used in an expression.
     x := DoNothing() + 1; 

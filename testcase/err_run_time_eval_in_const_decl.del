@@ -1,0 +1,9 @@
+program ErrRunTimeConst;
+
+var baseValue: integer;
+// 預期 Semantic Error: Const expression must be evaluated at compile time.
+const BAD_CONST = baseValue * 2; 
+
+begin
+    baseValue := 10;
+end ErrRunTimeConst.

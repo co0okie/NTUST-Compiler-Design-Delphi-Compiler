@@ -1,0 +1,13 @@
+program ErrBadIndex;
+
+var arr: array [1, 100] of real;
+var idx: real;
+
+begin
+    idx := 5.0;
+    // 預期 Semantic Error: Array index must be integer, got real.
+    arr[idx] := 10.5;
+    
+    // 預期 Semantic Error: Array index must be integer, got string.
+    arr["123"] := 20.0;
+end ErrBadIndex.

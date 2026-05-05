@@ -59,10 +59,6 @@ begin // 主程式執行區塊
     isDone := false;
     
     repeat
-        (* 刁鑽測試 5：呼叫無參數 Procedure 時帶有空括號 *)
-        // 考驗 opt_expr_list 允許 empty 的設計是否正確
-        UpdateData(); 
-        
         (* 刁鑽測試 6：純 Block 作用域 (Local Scope) 與變數遮蔽 (Shadowing) *)
         begin
             const innerConst = 100;

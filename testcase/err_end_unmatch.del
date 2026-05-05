@@ -5,4 +5,5 @@ begin
 end WrongName; // 預期 Semantic Error: Function end identifier does not match.
 
 begin
+write "Hello";
 end EndIdMismatchErr.
