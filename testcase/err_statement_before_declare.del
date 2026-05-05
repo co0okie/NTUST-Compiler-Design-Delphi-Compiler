@@ -2,7 +2,6 @@ program DeclsAfterStmtsErr;
 var x: integer;
 begin
     x := 1;
-    // 預期 Semantic Error: Declarations must precede statements.
     const Y = 2; 
     var z: real;
 end DeclsAfterStmtsErr.

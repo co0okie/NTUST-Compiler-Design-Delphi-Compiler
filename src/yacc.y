@@ -245,23 +245,6 @@ Entry* lookup_symbol(const char* name) {
     return NULL; 
 }
 
-/*======================================================
- * Semantic Analysis: Block State Machine
- *======================================================*/
-typedef enum { MODE_NONE, MODE_CONST, MODE_VAR, MODE_STMT } BlockMode;
-BlockMode current_mode = MODE_NONE;
-BlockMode mode_stack[100];
-int mode_top = 0;
-
-void push_mode() {
-    mode_stack[mode_top++] = current_mode;
-    current_mode = MODE_NONE;
-}
-
-void pop_mode() {
-    if (mode_top > 0) current_mode = mode_stack[--mode_top];
-}
-
 %}
 
 %union {
@@ -335,47 +318,39 @@ decls:
     /* empty */ ;
 
 decl:
-    CONST const_decl_list |
-    VAR var_decl_list ;
-
-const_decl_list:
-    const_decl_list const_decl |
-    const_decl ;
-
-const_decl:
-    ID EQ expr SEMICOLON {
-        Reduce("const_decl", "ID = expr ;");
-        Entry* sym = insert_symbol($1, TYPE_UNKNOWN, 1);
-        if (sym != NULL) {
-            sym->type = (DataType)$3;
-        }
-        free($1);
-    } ;
-
-var_decl_list:
-    var_decl_list var_decl |
+    const_decl |
     var_decl ;
 
+const_decl:
+    CONST ID EQ expr SEMICOLON {
+        Reduce("const_decl", "CONST ID = expr ;");
+        Entry* sym = insert_symbol($2, TYPE_UNKNOWN, 1);
+        if (sym != NULL) {
+            sym->type = (DataType)$4;
+        }
+        free($2);
+    } ;
+
 var_decl:
-    id_list COLON type opt_init SEMICOLON {
-        Reduce("var_decl", "id_list : type opt_init ;");
-        IdNode* curr = $1;
+    VAR id_list COLON type opt_init SEMICOLON {
+        Reduce("var_decl", "VAR id_list : type opt_init ;");
+        IdNode* curr = $2;
         while (curr != NULL) {
-            insert_symbol(curr->name, (DataType)$3, 0);
+            insert_symbol(curr->name, (DataType)$4, 0);
             IdNode* temp = curr;
             curr = curr->next;
             free(temp); 
         }
     } |
-    id_list COLON ARRAY LBRACK INT_CONST COMMA INT_CONST RBRACK OF type SEMICOLON {
-        Reduce("var_decl", "id_list : ARRAY [ INT , INT ] OF type ;");
-        IdNode* curr = $1;
+    VAR id_list COLON ARRAY LBRACK INT_CONST COMMA INT_CONST RBRACK OF type SEMICOLON {
+        Reduce("var_decl", "VAR id_list : ARRAY [ INT , INT ] OF type ;");
+        IdNode* curr = $2;
         while (curr != NULL) {
             Entry* sym = insert_symbol(curr->name, TYPE_ARRAY, 0);
             if (sym != NULL) {
-                sym->array_start = $5;
-                sym->array_end = $7;
-                sym->element_type = (DataType)$10;
+                sym->array_start = $6;
+                sym->array_end = $8;
+                sym->element_type = (DataType)$11;
             }
             IdNode* temp = curr;
             curr = curr->next;
@@ -515,40 +490,10 @@ formal_arg:
 block_stmt:
     BEGIN_KW {
         push_scope(); 
-        push_mode();
     }
-    block_items
+    decls stmts
     END SEMICOLON {
         pop_scope(); 
-        pop_mode();
-    } ;
-
-block_items:
-    block_items block_item |
-    /* empty */ ;
-
-block_item:
-    CONST const_decl {
-        Reduce("block_item", "CONST");
-        if (current_mode == MODE_STMT) yyerror("Semantic Error: Declarations must precede statements.");
-        current_mode = MODE_CONST;
-    } |
-    VAR var_decl {
-        Reduce("block_item", "VAR");
-        if (current_mode == MODE_STMT) yyerror("Semantic Error: Declarations must precede statements.");
-        current_mode = MODE_VAR;
-    } |
-    const_decl {
-        Reduce("block_item", "const_decl");
-        if (current_mode != MODE_CONST) yyerror("Semantic Error: Constant declaration found outside of 'const' block.");
-    } |
-    var_decl {
-        Reduce("block_item", "var_decl");
-        if (current_mode != MODE_VAR) yyerror("Semantic Error: Variable declaration found outside of 'var' block.");
-    } |
-    stmt {
-        Reduce("block_item", "stmt");
-        current_mode = MODE_STMT;
     } ;
 
 stmts:

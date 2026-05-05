@@ -3,20 +3,17 @@ program TrickyTest;
 (* 全域宣告區：
    測試常數型別推導、連續字串跳脫
 *)
-const
-    PI = 3.14;
-    GREETING = "Test ""String""!"; 
+const PI = 3.14;
+const GREETING = "Test ""String""!"; 
 
 (* 刁鑽測試 1：多變數同行宣告 (測試 IdNode Linked List) *)
-var
-    globalFlag, isDone: boolean; 
-    data: array [1, 50] of real;
+var globalFlag, isDone: boolean; 
+var data: array [1, 50] of real;
 
 (* 刁鑽測試 2：多重且不同型別的參數傳遞 (測試函式簽章 Signature 收集) *)
 function Calculate(a: integer, b: integer, c: real): real;
-var
-    temp: real;
-    flag: boolean;
+var temp: real;
+var flag: boolean;
 begin
     // 測試型別推導 (int * int + real => real) 以及一元負號
     temp := -a * b + c;
@@ -29,8 +26,7 @@ begin
 end Calculate;
 
 procedure UpdateData;
-var
-    i, j: integer;
+var i, j: integer;
 begin
     i := 1;
     while i <= 10 do

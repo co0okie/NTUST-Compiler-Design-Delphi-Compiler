@@ -1,7 +1,7 @@
 program TypeMismatchWarn;
 var x: integer;
-    y: string;
+var y: string;
 begin
-    // 預期 Semantic Warning: Type mismatch in assignment. (依據你 Yacc 中的設定)
+    // 預期 Semantic Warning: Type mismatch in assignment.
     x := "Hello"; 
 end TypeMismatchWarn.
