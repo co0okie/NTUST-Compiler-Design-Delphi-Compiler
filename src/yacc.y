@@ -17,7 +17,6 @@ int error_count = 0;
  *======================================================*/
 #define HASH_SIZE 211
 #define MAX_ID_LEN 50
-#define MAX_PARAMS 20
 
 typedef enum { 
     TYPE_INT, 
@@ -29,28 +28,50 @@ typedef enum {
     TYPE_UNKNOWN 
 } DataType;
 
+/* 參數型別串列節點：取代原本固定長度的 param_types 陣列 */
+typedef struct _ParamNode {
+    DataType type;
+    struct _ParamNode *next;
+} ParamNode;
+
+/* 定義 Symbol 的身分種類 */
+typedef enum {
+    SYM_VAR,        /* 一般變數 */
+    SYM_CONST,      /* 常數 */
+    SYM_ARRAY,      /* 陣列變數 */
+    SYM_FUNC,       /* 函式 */
+    SYM_PROC        /* 程序 */
+} SymbolKind;
+
 typedef struct _Entry {
     char name[MAX_ID_LEN];
-    DataType type;           /* 變數、常數或函式回傳值的類型 */
-    int is_const;            /* 0: var/func/proc, 1: const */
-    int is_function;         /* 擴充：紀錄是否為 Function/Procedure */
+    SymbolKind kind;         /* 取代原本的 is_const 與 is_function */
+    DataType type;           /* 變數型別、常數型別，或函式的回傳型別 */
     
-    /* 儲存編譯期已知的常數數值 */
+    /* 專屬屬性區 (Union 讓不同身分的欄位共用記憶體) */
     union {
-        int int_val;
-        float real_val;
-        int bool_val;
-        char* str_val;
-    } const_val;
-    
-    /* 陣列專屬資訊 */
-    int array_start;
-    int array_end;
-    DataType element_type;   /* 陣列元素的類型 */
-    
-    /* 函式/程序專屬資訊 */
-    int param_count;
-    DataType param_types[MAX_PARAMS];
+        /* 1. 常數專屬資訊 */
+        struct {
+            union {
+                int int_val;
+                float real_val;
+                int bool_val;
+                char* str_val;
+            } val;
+        } const_;
+        
+        /* 2. 陣列專屬資訊 */
+        struct {
+            int start;
+            int end;
+            DataType element_type;
+        } array;
+        
+        /* 3. 函式/程序專屬資訊 */
+        struct {
+            ParamNode* param_list;  /* 參數串列的開頭 */
+        } subprog;
+    } as;
     
     struct _Entry *next;
     struct _Entry *next_in_scope; /* 擴充：紀錄宣告順序 */
@@ -105,20 +126,34 @@ void pop_scope() {
         printf("%02d: Scope Popped, Symbol Table:\n", yylineno);
         Entry* curr = current_scope->order_head;
         while (curr != NULL) {
-            if (curr->type == TYPE_VOID) {
-                printf("    %s: procedure(", curr->name);
-                for(int p=0; p<curr->param_count; p++) {
-                    printf("%s%s", type_to_string(curr->param_types[p]), p < curr->param_count - 1 ? ", " : "");
+            if (curr->kind == SYM_PROC || curr->kind == SYM_FUNC) {
+                printf("    %s: %s(", curr->name, curr->kind == SYM_PROC ? "procedure" : "function");
+                ParamNode* pnode = curr->as.subprog.param_list;
+                while (pnode != NULL) {
+                    printf("%s%s", type_to_string(pnode->type), pnode->next ? ", " : "");
+                    pnode = pnode->next;
                 }
-                printf(")\n");
-            } else if (curr->is_function) {
-                printf("    %s: function(", curr->name);
-                for(int p=0; p<curr->param_count; p++) {
-                    printf("%s%s", type_to_string(curr->param_types[p]), p < curr->param_count - 1 ? ", " : "");
+                if (curr->kind == SYM_FUNC) {
+                    printf("): %s\n", type_to_string(curr->type));
+                } else {
+                    printf(")\n");
                 }
-                printf("): %s\n", type_to_string(curr->type));
-            } else if (curr->type == TYPE_ARRAY) {
-                printf("    %s: array [%d, %d] of %s\n", curr->name, curr->array_start, curr->array_end, type_to_string(curr->element_type));
+            } else if (curr->kind == SYM_ARRAY) {
+                printf("    %s: array [%d, %d] of %s\n", curr->name, curr->as.array.start, curr->as.array.end, type_to_string(curr->as.array.element_type));
+            } else if (curr->kind == SYM_CONST) {
+                /* 特別標註並印出常數的值 */
+                printf("    %s: const %s ", curr->name, type_to_string(curr->type));
+                if (curr->type == TYPE_INT) {
+                    printf("%d\n", curr->as.const_.val.int_val);
+                } else if (curr->type == TYPE_REAL) {
+                    printf("%g\n", curr->as.const_.val.real_val); /* 使用 %g 去除尾數多餘的 0 */
+                } else if (curr->type == TYPE_BOOL) {
+                    printf("%s\n", curr->as.const_.val.bool_val ? "true" : "false");
+                } else if (curr->type == TYPE_STR) {
+                    printf("\"%s\"\n", curr->as.const_.val.str_val);
+                } else {
+                    printf("unknown\n");
+                }
             } else {
                 printf("    %s: %s\n", curr->name, type_to_string(curr->type));
             }
@@ -132,9 +167,21 @@ void pop_scope() {
         Entry* curr = temp->table[i];
         while (curr != NULL) {
             Entry* next = curr->next;
-            if (curr->is_const && curr->type == TYPE_STR && curr->const_val.str_val != NULL) {
-                free(curr->const_val.str_val);
+            
+            /* 釋放常數型別的字串記憶體 */
+            if (curr->kind == SYM_CONST && curr->type == TYPE_STR && curr->as.const_.val.str_val != NULL) {
+                free(curr->as.const_.val.str_val);
             }
+            /* 釋放參數串列記憶體 */
+            if (curr->kind == SYM_FUNC || curr->kind == SYM_PROC) {
+                ParamNode* pnode = curr->as.subprog.param_list;
+                while (pnode != NULL) {
+                    ParamNode* next_pnode = pnode->next;
+                    free(pnode);
+                    pnode = next_pnode;
+                }
+            }
+            
             free(curr);
             curr = next;
         }
@@ -142,7 +189,7 @@ void pop_scope() {
     free(temp);
 }
 
-Entry* insert_symbol(const char* name, DataType type, int is_const) {
+Entry* insert_symbol(const char* name, SymbolKind kind, DataType type) {
     int idx = hash_djb2(name) % HASH_SIZE;
     Entry* curr = current_scope->table[idx];
     
@@ -159,13 +206,17 @@ Entry* insert_symbol(const char* name, DataType type, int is_const) {
     Entry* new_entry = (Entry*)malloc(sizeof(Entry));
     strncpy(new_entry->name, name, MAX_ID_LEN - 1);
     new_entry->name[MAX_ID_LEN - 1] = '\0';
+    new_entry->kind = kind;
     new_entry->type = type;
-    new_entry->is_const = is_const;
-    new_entry->is_function = 0;
-    new_entry->param_count = 0;
-    new_entry->array_start = 0;
-    new_entry->array_end = 0;
-    new_entry->element_type = TYPE_UNKNOWN;
+    
+    /* 根據身分類別初始化專屬記憶體區塊 */
+    if (kind == SYM_ARRAY) {
+        new_entry->as.array.start = 0;
+        new_entry->as.array.end = 0;
+        new_entry->as.array.element_type = TYPE_UNKNOWN;
+    } else if (kind == SYM_FUNC || kind == SYM_PROC) {
+        new_entry->as.subprog.param_list = NULL;
+    }
     
     new_entry->next = current_scope->table[idx];
     current_scope->table[idx] = new_entry;
@@ -295,17 +346,19 @@ void free_ast(ASTNode* node) {
 }
 
 ASTNode* evaluate_binary_op(int op, ASTNode* left, ASTNode* right);
-
 ASTNode* evaluate_unary_op(int op, ASTNode* operand);
 
-/* 參數比對機制 (已優化：單次遍歷即可計算與檢查) */
+/* 參數比對機制 (已優化：雙串列齊步走，優雅判斷多寡與型別) */
 void check_arguments(const char* func_name, Entry* sym, ASTNode* args) {
     if (sym == NULL) return;
     
-    ASTNode* curr = args;
-    for (int i = 0; i < sym->param_count; i++) {
-        /* 如果傳入的參數提早結束 */
-        if (curr == NULL) {
+    ASTNode* curr_arg = args;
+    ParamNode* curr_param = sym->as.subprog.param_list;
+    int arg_index = 1;
+    
+    while (curr_param != NULL) {
+        /* 呼叫者提供的參數提早見底 (太少) */
+        if (curr_arg == NULL) {
             char msg[256];
             sprintf(msg, "Too few arguments in call to '%s'.", func_name);
             yyerror(msg);
@@ -313,21 +366,23 @@ void check_arguments(const char* func_name, Entry* sym, ASTNode* args) {
         }
         
         /* 檢查型別相容性 */
-        if (sym->param_types[i] != curr->data_type && curr->data_type != TYPE_UNKNOWN) {
-            if (sym->param_types[i] == TYPE_REAL && curr->data_type == TYPE_INT) {
+        if (curr_param->type != curr_arg->data_type && curr_arg->data_type != TYPE_UNKNOWN) {
+            if (curr_param->type == TYPE_REAL && curr_arg->data_type == TYPE_INT) {
                 printf("%02d: Semantic Warning: Implicit conversion from int to real in function argument.\n", yylineno);
             } else {
                 char msg[256];
                 sprintf(msg, "Argument %d of '%s' expects %s, but got %s.",
-                        i + 1, func_name, type_to_string(sym->param_types[i]), type_to_string(curr->data_type));
+                        arg_index, func_name, type_to_string(curr_param->type), type_to_string(curr_arg->data_type));
                 yyerror(msg);
             }
         }
-        curr = curr->next;
+        curr_param = curr_param->next;
+        curr_arg = curr_arg->next;
+        arg_index++;
     }
     
-    /* 如果比對完畢後，還有剩下的傳入參數 */
-    if (curr != NULL) {
+    /* 宣告定義的參數走完了，但呼叫者提供的參數還有剩 (太多) */
+    if (curr_arg != NULL) {
         char msg[256];
         sprintf(msg, "Too many arguments in call to '%s'.", func_name);
         yyerror(msg);
@@ -417,12 +472,12 @@ const_decl:
             YYABORT;
         }
         
-        Entry* sym = insert_symbol($2, $4->data_type, 1);
+        Entry* sym = insert_symbol($2, SYM_CONST, $4->data_type);
         if (sym != NULL) {
-            if ($4->data_type == TYPE_INT) sym->const_val.int_val = $4->as.int_val;
-            else if ($4->data_type == TYPE_REAL) sym->const_val.real_val = $4->as.real_val;
-            else if ($4->data_type == TYPE_BOOL) sym->const_val.bool_val = $4->as.bool_val;
-            else if ($4->data_type == TYPE_STR) sym->const_val.str_val = strdup($4->as.str_val);
+            if ($4->data_type == TYPE_INT) sym->as.const_.val.int_val = $4->as.int_val;
+            else if ($4->data_type == TYPE_REAL) sym->as.const_.val.real_val = $4->as.real_val;
+            else if ($4->data_type == TYPE_BOOL) sym->as.const_.val.bool_val = $4->as.bool_val;
+            else if ($4->data_type == TYPE_STR) sym->as.const_.val.str_val = strdup($4->as.str_val);
         }
         free($2);
         free_ast($4);
@@ -433,7 +488,7 @@ var_decl:
         Reduce("var_decl", "VAR id_list : type opt_init ;");
         ASTNode* curr = $2;
         while (curr != NULL) {
-            insert_symbol(curr->as.id_name, (DataType)$4, 0);
+            insert_symbol(curr->as.id_name, SYM_VAR, (DataType)$4);
             curr = curr->next;
         }
         free_ast($2); 
@@ -443,11 +498,11 @@ var_decl:
         Reduce("var_decl", "VAR id_list : ARRAY [ INT , INT ] OF type ;");
         ASTNode* curr = $2;
         while (curr != NULL) {
-            Entry* sym = insert_symbol(curr->as.id_name, TYPE_ARRAY, 0);
+            Entry* sym = insert_symbol(curr->as.id_name, SYM_ARRAY, TYPE_ARRAY);
             if (sym != NULL) {
-                sym->array_start = $6;
-                sym->array_end = $8;
-                sym->element_type = (DataType)$11;
+                sym->as.array.start = $6;
+                sym->as.array.end = $8;
+                sym->as.array.element_type = (DataType)$11;
             }
             curr = curr->next;
         }
@@ -489,19 +544,22 @@ subprogram:
 
 func_decl:
     FUNCTION ID  { 
-        insert_symbol($2, TYPE_UNKNOWN, 0);
+        insert_symbol($2, SYM_FUNC, TYPE_UNKNOWN);
         push_scope();
     }
     opt_formal_args COLON type SEMICOLON {
         Entry* sym = lookup_symbol($2);
         if (sym != NULL) {
-            sym->is_function = 1;
             sym->type = (DataType)$6; 
             ASTNode* curr = $4;
+            /* 透過指標的指標 (**tail) 來進行串列的末端新增，代碼會非常優雅 */
+            ParamNode** tail = &(sym->as.subprog.param_list);
             while (curr != NULL) {
-                if (sym->param_count < MAX_PARAMS) {
-                    sym->param_types[sym->param_count++] = curr->data_type;
-                }
+                *tail = (ParamNode*)malloc(sizeof(ParamNode));
+                (*tail)->type = curr->data_type;
+                (*tail)->next = NULL;
+                tail = &((*tail)->next);
+                
                 curr = curr->next;
             }
         }
@@ -521,18 +579,20 @@ func_decl:
 
 proc_decl:
     PROCEDURE ID  { 
-        insert_symbol($2, TYPE_VOID, 0); 
+        insert_symbol($2, SYM_PROC, TYPE_VOID); 
         push_scope(); 
     }
     opt_formal_args SEMICOLON {
         Entry* sym = lookup_symbol($2);
         if (sym != NULL) {
-            sym->is_function = 1; 
             ASTNode* curr = $4;
+            ParamNode** tail = &(sym->as.subprog.param_list);
             while (curr != NULL) {
-                if (sym->param_count < MAX_PARAMS) {
-                    sym->param_types[sym->param_count++] = curr->data_type;
-                }
+                *tail = (ParamNode*)malloc(sizeof(ParamNode));
+                (*tail)->type = curr->data_type;
+                (*tail)->next = NULL;
+                tail = &((*tail)->next);
+                
                 curr = curr->next;
             }
         }
@@ -541,7 +601,7 @@ proc_decl:
     BEGIN_KW 
     stmts 
     END ID SEMICOLON {
-        Reduce("proc_decl", "PROCEDURE ID opt_formal_args ; decls BEGIN stmts END ID ;");
+        Reduce("proc_decl", "PROCEDURE ID opt_formal_args : type ; decls BEGIN stmts END ID ;");
         if (strcmp($2, $11) != 0) {
             yyerror("Procedure end identifier does not match.");
         }
@@ -566,7 +626,7 @@ formal_args:
 formal_arg:
     ID COLON type {
         Reduce("formal_arg", "ID : type");
-        insert_symbol($1, (DataType)$3, 0);
+        insert_symbol($1, SYM_VAR, (DataType)$3);
         $$ = create_id_node($1);
         $$->data_type = (DataType)$3;
         free($1);
@@ -602,7 +662,7 @@ id_eval:
         if (sym == NULL) {
             char msg[256]; sprintf(msg, "Undeclared identifier '%s'.", $1); yyerror(msg);
             $$ = create_runtime_node(TYPE_UNKNOWN);
-        } else if (sym->is_function) {
+        } else if (sym->kind == SYM_FUNC || sym->kind == SYM_PROC) {
             /* 若定義為函式或程序，取出傳遞上來的參數名單 (略過 head dummy 節點) */
             ASTNode* args = ($2 != NULL) ? $2->next : NULL;
             check_arguments($1, sym, args);
@@ -614,11 +674,11 @@ id_eval:
                 $$ = create_runtime_node(TYPE_UNKNOWN);
             } else {
                 /* 原地解壓縮常數 */
-                if (sym->is_const) {
-                    if (sym->type == TYPE_INT) $$ = create_int_node(sym->const_val.int_val);
-                    else if (sym->type == TYPE_REAL) $$ = create_real_node(sym->const_val.real_val);
-                    else if (sym->type == TYPE_BOOL) $$ = create_bool_node(sym->const_val.bool_val);
-                    else if (sym->type == TYPE_STR) $$ = create_str_node(sym->const_val.str_val);
+                if (sym->kind == SYM_CONST) {
+                    if (sym->type == TYPE_INT) $$ = create_int_node(sym->as.const_.val.int_val);
+                    else if (sym->type == TYPE_REAL) $$ = create_real_node(sym->as.const_.val.real_val);
+                    else if (sym->type == TYPE_BOOL) $$ = create_bool_node(sym->as.const_.val.bool_val);
+                    else if (sym->type == TYPE_STR) $$ = create_str_node(sym->as.const_.val.str_val);
                     else $$ = create_runtime_node(sym->type);
                 } else {
                     $$ = create_runtime_node(sym->type);
@@ -658,7 +718,7 @@ simple_stmt:
         Entry* sym = lookup_symbol($1);
         if (sym == NULL) {
             char msg[256]; sprintf(msg, "Undeclared identifier '%s'.", $1); yyerror(msg);
-        } else if (sym->is_const) {
+        } else if (sym->kind == SYM_CONST) {
             char msg[256]; sprintf(msg, "Cannot assign to constant '%s'.", $1); yyerror(msg);
         } else if (sym->type != $3->data_type && $3->data_type != TYPE_UNKNOWN) {
             if (sym->type == TYPE_REAL && $3->data_type == TYPE_INT) {
@@ -676,17 +736,17 @@ simple_stmt:
         Entry* sym = lookup_symbol($1);
         if (sym == NULL) {
             char msg[256]; sprintf(msg, "Undeclared identifier '%s'.", $1); yyerror(msg);
-        } else if (sym->type != TYPE_ARRAY) {
+        } else if (sym->kind != SYM_ARRAY) {
             char msg[256]; sprintf(msg, "'%s' is not an array.", $1); yyerror(msg);
         } else {
             if ($3->data_type != TYPE_INT && $3->data_type != TYPE_UNKNOWN) {
                 char msg[256]; sprintf(msg, "Array index must be integer, got %s.", type_to_string($3->data_type)); yyerror(msg);
             }
-            if (sym->element_type != $6->data_type && $6->data_type != TYPE_UNKNOWN) {
-                if (sym->element_type == TYPE_REAL && $6->data_type == TYPE_INT) {
+            if (sym->as.array.element_type != $6->data_type && $6->data_type != TYPE_UNKNOWN) {
+                if (sym->as.array.element_type == TYPE_REAL && $6->data_type == TYPE_INT) {
                     printf("%02d: Semantic Warning: Implicit conversion from int to real in array assignment.\n", yylineno);
                 } else {
-                    char msg[256]; sprintf(msg, "Cannot assign expression of type %s to array element of type %s.", type_to_string($6->data_type), type_to_string(sym->element_type)); yyerror(msg);
+                    char msg[256]; sprintf(msg, "Cannot assign expression of type %s to array element of type %s.", type_to_string($6->data_type), type_to_string(sym->as.array.element_type)); yyerror(msg);
                 }
             }
         }
@@ -758,14 +818,14 @@ expr:
         if (sym == NULL) {
             char msg[256]; sprintf(msg, "Undeclared identifier '%s'.", $1); yyerror(msg);
             $$ = create_runtime_node(TYPE_UNKNOWN);
-        } else if (sym->type != TYPE_ARRAY) {
+        } else if (sym->kind != SYM_ARRAY) {
             char msg[256]; sprintf(msg, "'%s' is not an array.", $1); yyerror(msg);
             $$ = create_runtime_node(TYPE_UNKNOWN);
         } else {
             if ($3->data_type != TYPE_INT && $3->data_type != TYPE_UNKNOWN) {
                 char msg[256]; sprintf(msg, "Array index must be integer, got %s.", type_to_string($3->data_type)); yyerror(msg);
             }
-            $$ = create_runtime_node(sym->element_type);
+            $$ = create_runtime_node(sym->as.array.element_type);
         }
         free($1); free_ast($3);
     } |
