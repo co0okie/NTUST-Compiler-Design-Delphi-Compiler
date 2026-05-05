@@ -1,80 +1,134 @@
-program TrickyTest;
+program UltimateTrickyTest;
 
-(* 全域宣告區：
-   測試常數型別推導、連續字串跳脫
-*)
-const PI = 3.14;
-const GREETING = "Test ""String""!"; 
+(* =======================================================
+ * 1. 全域宣告與極端常數摺疊 (Compile-Time Evaluation)
+ * ======================================================= *)
+const PI = 3.1415926;
+const BASE_OFFSET = -10 + (5 * 4) / 2 mod 3; // 測試括號優先級、負號與 Mod
+const MAGIC_NUM = BASE_OFFSET + 42;
+const IS_READY = not (BASE_OFFSET = 0) and (MAGIC_NUM >= 40) or false;
+const STR_CONST = "Welcome to the ""Ultimate"" Compiler Test!";
 
-(* 刁鑽測試 1：多變數同行宣告 (測試 IdNode Linked List) *)
-var globalFlag, isDone: boolean; 
-var data: array [1, 50] of real;
+var g_int1, g_int2: integer; 
+var g_real: real;
+var g_flag: boolean;
+// 測試變數宣告時的 opt_init (雖然目前 Parser 不轉成賦值指令，但語法必須過)
+var initializedVar: integer = 999; 
 
-(* 刁鑽測試 2：多重且不同型別的參數傳遞 (測試函式簽章 Signature 收集) *)
-function Calculate(a: integer, b: integer, c: real): real;
-var temp: real;
-var flag: boolean;
+var g_intArray: array [0, 100] of integer;
+var g_realArray: array [1, 50] of real;
+
+
+(* =======================================================
+ * 2. 遞迴函數與隱式型別轉換 (Implicit Conversions)
+ * ======================================================= *)
+function MathMagic(a: real, b: integer, c: boolean): real;
+const LOCAL_MULTIPLIER = 2.5;
+var result: real;
 begin
-    // 測試型別推導 (int * int + real => real) 以及一元負號
-    temp := -a * b + c;
-    flag := (a > b) and not (c <= 0.0);
-    
-    if flag then
-        return temp;
+    if c = true then
+        // a (real) + b (int) * const (real) => 引發 Warning 但必須推導為 Real
+        result := a + b * LOCAL_MULTIPLIER;
     else
-        return 0.0;
-end Calculate;
-
-procedure UpdateData;
-var i, j: integer;
-begin
-    i := 1;
-    while i <= 10 do
     begin
-        (* 刁鑽測試 3：Block 狀態機嚴格順序測試 (Decls 必須在 Stmts 之前) *)
-        const FACTOR = 2;
-        var localVal: real;
-        
-        // 測試 Function 呼叫與陣列賦值
-        localVal := Calculate(i, FACTOR, 1.5); 
-        data[i] := localVal;
-        
-        (* 刁鑽測試 4：終極 Dangling-Else 巢狀陷阱 *)
-        // Parser 必須能正確將 else 配對給內層的 if，而不會引發 Shift/Reduce Conflict
-        if globalFlag then
-            if data[i] > 10.0 then
-                writeln "High";
-            else
-                writeln "Low";
-        else
-            writeln "Flag is false";
-            
-        i := i + 1;
+        const INNER_CONST = 10;
+        result := b mod INNER_CONST; // int 轉 real 的 Warning
     end;
-end UpdateData;
+    
+    return result;
+end MathMagic;
 
-begin // 主程式執行區塊
-    writeln GREETING;
-    globalFlag := true;
-    isDone := false;
-    
-    repeat
-        (* 刁鑽測試 6：純 Block 作用域 (Local Scope) 與變數遮蔽 (Shadowing) *)
+function Factorial(n: integer): integer;
+begin
+    if n <= 1 then 
+        return 1;
+    else 
+        return n * Factorial(n - 1); // 遞迴呼叫
+end Factorial;
+
+
+(* =======================================================
+ * 3. 巢狀迴圈、Dangling-Else 與陣列極限操作
+ * ======================================================= *)
+procedure DeepNesting(limit: integer);
+var i, j: integer;
+var temp: real;
+begin
+    for i := 1 to limit do
+    begin
+        j := limit;
+        while j > 0 do
         begin
-            const innerConst = 100;
-            var shadowFlag: boolean; // 這個變數只存活在這個區塊
-            
-            shadowFlag := not globalFlag;
-            
-            // 測試布林邏輯與括號優先級
-            if shadowFlag or (PI < 3.0) then
-                isDone := true;
-            else
-                isDone := true; 
+            repeat
+                // 陣列索引包含複雜四則運算與 Function 呼叫
+                g_intArray[(i * j) mod 100 + Factorial(3)] := i + j;
+                
+                // 終極 Dangling-Else 測試
+                if i > 5 then
+                    if j < 2 then
+                        writeln "Critical Depth Reached";
+                    else
+                        writeln "Going Deeper";
+                else
+                    temp := MathMagic(3.14, j, IS_READY); // Function 做為 Rvalue
+                
+                j := j - 1;
+            until j <= 0;
         end;
-        // 離開上述區塊後，shadowFlag 與 innerConst 應該要在 pop_scope() 中被印出並消滅
-        
-    until isDone = true;
+    end;
+end DeepNesting;
+
+procedure ParamlessProc;
+var shadowFlag: string;
+begin
+    shadowFlag := "This procedure takes no arguments!";
+    writeln shadowFlag;
+end ParamlessProc;
+
+
+(* =======================================================
+ * 4. 主程式執行區塊與變數遮蔽 (Scope Shadowing)
+ * ======================================================= *)
+begin
+    writeln STR_CONST;
     
-    read globalFlag;
-end TrickyTest.
+    g_int1 := 5;
+    g_int2 := 10;
+    
+    // 陣列賦值伴隨隱式型別轉換 (Int to Real Array)
+    g_realArray[1] := Factorial(g_int1);
+    
+    (* 測試 4.1：無參數 Subprogram 呼叫的兩種合法型態 *)
+    ParamlessProc;     // 沒括號
+    ParamlessProc();   // 有括號 (opt_invoke 空參數)
+    
+    (* 測試 4.2：瘋狂的 Block 變數遮蔽 (Shadowing) *)
+    begin
+        // 遮蔽全域 g_int1 (變成常數)
+        const g_int1 = 777; 
+        // 遮蔽全域 g_int2 (變成浮點數)
+        var g_int2: real;   
+        
+        g_int2 := 99.9;
+        g_real := g_int1 + g_int2; // Const int + Var real
+        
+        writeln "Entering deepest scope...";
+        begin
+            // 再次遮蔽 g_int1，這次變成字串！
+            var g_int1: string; 
+            g_int1 := "I am a shadowed string now!";
+            writeln g_int1;
+        end;
+        // 離開內層，字串 g_int1 消滅。現在印出的是浮點數 g_int2
+        writeln g_int2;
+    end;
+    // 離開外層，所有遮蔽解除。現在 g_int1 變回整數 5
+    
+    (* 測試 4.3：複雜布林邏輯與 Procedure 呼叫 *)
+    if (g_int1 = 5) and (not IS_READY) or (g_realArray[1] >= 0.0) then
+        DeepNesting(3); // Procedure 呼叫作為陳述句
+    else
+        writeln "Conditions not met.";
+        
+    read g_flag;
+end UltimateTrickyTest.

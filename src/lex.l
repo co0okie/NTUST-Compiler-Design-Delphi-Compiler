@@ -18,8 +18,9 @@ char *string_buf_ptr;
 %option yylineno
 %option caseless
 
-/* 處理多行註解與字串的 Start Condition */
+/* multiline comment */
 %x COMMENT
+/* string */
 %x STRING
 
 %%
@@ -155,7 +156,7 @@ char *string_buf_ptr;
 
 .           { 
               LIST; 
-              printf("\n%02d: Lex Error: Unrecognized character: '%s'\n", yytext, yylineno); 
+              printf("\n%02d: Lex Error: Unrecognized character: '%s'\n", yylineno, yytext); 
             }
 %%
 
