@@ -1,5 +1,0 @@
-program ArrayBoundsErr;
-var arr: integer;
-begin
-    write arr[1];
-end ArrayBoundsErr.

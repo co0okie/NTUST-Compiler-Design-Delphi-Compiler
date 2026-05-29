@@ -3,66 +3,62 @@ program UltimateTrickyTest;
 (* =======================================================
  * 1. 全域宣告與極端常數摺疊 (Compile-Time Evaluation)
  * ======================================================= *)
-const PI = 3.1415926;
-const BASE_OFFSET = -10 + (5 * 4) / 2 mod 3; // 測試括號優先級、負號與 Mod
+// 測試括號優先級、一元負號與 Mod 運算
+const BASE_OFFSET = -10 + (5 * 4) / 2 mod 3; 
 const MAGIC_NUM = BASE_OFFSET + 42;
+// 測試複雜的 Compile-time Boolean 推導
 const IS_READY = not (BASE_OFFSET = 0) and (MAGIC_NUM >= 40) or false;
-const STR_CONST = "Welcome to the ""Ultimate"" Compiler Test!";
+// 合法的字串常數 (String Literals 僅允許作為常數或 write 參數)
+const STR_CONST = "Welcome to the ""Ultimate"" Delphi Subset Compiler Test!";
 
 var g_int1, g_int2: integer; 
-var g_real: real;
 var g_flag: boolean;
-// 測試變數宣告時的 opt_init (雖然目前 Parser 不轉成賦值指令，但語法必須過)
+// 測試變數宣告時的 opt_init (你的 Parser 有這條規則，必須能通過並做型別檢查)
 var initializedVar: integer = 999; 
 
-var g_intArray: array [0, 100] of integer;
-var g_realArray: array [1, 50] of real;
-
-
 (* =======================================================
- * 2. 遞迴函數與隱式型別轉換 (Implicit Conversions)
+ * 2. 嚴格型別約束與遞迴函式
  * ======================================================= *)
-function MathMagic(a: real, b: integer, c: boolean): real;
-const LOCAL_MULTIPLIER = 2.5;
-var result: real;
-begin
-    if c = true then
-        // a (real) + b (int) * const (real) => 引發 Warning 但必須推導為 Real
-        result := a + b * LOCAL_MULTIPLIER;
-    else
-    begin
-        const INNER_CONST = 10;
-        result := b mod INNER_CONST; // int 轉 real 的 Warning
-    end;
-    
-    return result;
-end MathMagic;
-
 function Factorial(n: integer): integer;
 begin
+    // 嚴格 Boolean 條件檢查
     if n <= 1 then 
         return 1;
     else 
         return n * Factorial(n - 1); // 遞迴呼叫
 end Factorial;
 
+function LogicMagic(a: integer, b: integer, c: boolean): boolean;
+const LOCAL_MULTIPLIER = 2;
+var result: boolean;
+begin
+    // 測試 Boolean 變數直接做為 if 條件
+    if c then
+        // 嚴格型別：(int + int * int) > int => 產生 boolean 給 result
+        result := (a + b * LOCAL_MULTIPLIER) > 10;
+    else
+    begin
+        const INNER_CONST = 10;
+        result := (b mod INNER_CONST) = 0; 
+    end;
+    
+    return result;
+end LogicMagic;
 
 (* =======================================================
- * 3. 巢狀迴圈、Dangling-Else 與陣列極限操作
+ * 3. 巢狀迴圈、Dangling-Else 與控制流極限
  * ======================================================= *)
 procedure DeepNesting(limit: integer);
 var i, j: integer;
-var temp: real;
+var temp: boolean;
 begin
+    // 測試 For-loop，確保 counter 與 bounds 都通過 Integer 檢查
     for i := 1 to limit do
     begin
         j := limit;
         while j > 0 do
         begin
             repeat
-                // 陣列索引包含複雜四則運算與 Function 呼叫
-                g_intArray[(i * j) mod 100 + Factorial(3)] := i + j;
-                
                 // 終極 Dangling-Else 測試
                 if i > 5 then
                     if j < 2 then
@@ -70,24 +66,22 @@ begin
                     else
                         writeln "Going Deeper";
                 else
-                    temp := MathMagic(3.14, j, IS_READY); // Function 做為 Rvalue
+                    temp := LogicMagic(i, j, IS_READY); // Function 做為 Rvalue 賦值
                 
                 j := j - 1;
-            until j <= 0;
+            until j <= 0; // 嚴格 Boolean 條件
         end;
     end;
 end DeepNesting;
 
 procedure ParamlessProc;
-var shadowFlag: string;
+const shadowFlag = "This procedure takes no arguments!"; // 字串只能是 const
 begin
-    shadowFlag := "This procedure takes no arguments!";
     writeln shadowFlag;
 end ParamlessProc;
 
-
 (* =======================================================
- * 4. 主程式執行區塊與變數遮蔽 (Scope Shadowing)
+ * 4. 主程式執行區塊與無情變數遮蔽 (Scope Shadowing)
  * ======================================================= *)
 begin
     writeln STR_CONST;
@@ -95,40 +89,39 @@ begin
     g_int1 := 5;
     g_int2 := 10;
     
-    // 陣列賦值伴隨隱式型別轉換 (Int to Real Array)
-    g_realArray[1] := Factorial(g_int1);
-    
     (* 測試 4.1：無參數 Subprogram 呼叫的兩種合法型態 *)
     ParamlessProc;     // 沒括號
-    ParamlessProc();   // 有括號 (opt_invoke 空參數)
+    ParamlessProc();   // 有括號 (opt_invoke 產生 Dummy 節點後需正確驗證參數為空)
     
     (* 測試 4.2：瘋狂的 Block 變數遮蔽 (Shadowing) *)
     begin
-        // 遮蔽全域 g_int1 (變成常數)
+        // 第一層遮蔽：將全域變數 g_int1 (var int) 遮蔽為常數 (const int)
         const g_int1 = 777; 
-        // 遮蔽全域 g_int2 (變成浮點數)
-        var g_int2: real;   
+        // 第一層遮蔽：將全域變數 g_int2 (var int) 遮蔽為不同型別 (var boolean)
+        var g_int2: boolean;   
         
-        g_int2 := 99.9;
-        g_real := g_int1 + g_int2; // Const int + Var real
+        g_int2 := true;
+        g_flag := (g_int1 > 100) and g_int2; // Const int 比較後與 Var boolean 做 AND
         
         writeln "Entering deepest scope...";
         begin
-            // 再次遮蔽 g_int1，這次變成字串！
-            var g_int1: string; 
-            g_int1 := "I am a shadowed string now!";
-            writeln g_int1;
+            // 第二層遮蔽：再次遮蔽 g_int1，這次變回變數，確保 Symbol Table 不會找錯層
+            var g_int1: integer; 
+            g_int1 := 9999;
+            
+            if g_int1 = 9999 then
+                writeln "Shadowing works perfectly!";
         end;
-        // 離開內層，字串 g_int1 消滅。現在印出的是浮點數 g_int2
-        writeln g_int2;
+        // 離開第二層，g_int1 再次變回常數 777。印出中層的 boolean。
+        if g_int2 then
+            writeln "Middle scope intact.";
     end;
-    // 離開外層，所有遮蔽解除。現在 g_int1 變回整數 5
+    // 離開所有 Local Scope，全域的 g_int1 (值為 5) 滿血復活。
     
-    (* 測試 4.3：複雜布林邏輯與 Procedure 呼叫 *)
-    if (g_int1 = 5) and (not IS_READY) or (g_realArray[1] >= 0.0) then
-        DeepNesting(3); // Procedure 呼叫作為陳述句
+    (* 測試 4.3：複雜布林邏輯與 Procedure Statement *)
+    if (g_int1 = 5) and (not IS_READY) or (initializedVar >= 900) then
+        DeepNesting(3); // Procedure 呼叫作為 Statement
     else
         writeln "Conditions not met.";
         
-    read g_flag;
 end UltimateTrickyTest.

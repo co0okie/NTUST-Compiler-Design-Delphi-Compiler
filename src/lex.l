@@ -9,7 +9,7 @@
 #define tokenString(t, s) { LIST; if(Opt_T) printf("<%s:%s>\n", t, s); return s; }
 
 int Opt_T = 0; /* output token */
-int Opt_S = 0; /* output source code */
+int Opt_S = 1; /* output source code */
 char buf[256];
 char string_buf[1024];
 char *string_buf_ptr;
@@ -26,28 +26,24 @@ char *string_buf_ptr;
 %%
 
  /* include \r to avoid LF/CRLF problem */
-[ \t\r]+    { LIST; }
+\r+
+[ \t]+      { LIST; }
 \n          { 
-              LIST; 
-              if (Opt_S) printf("%02d: %s", yylineno - 1, buf); 
+              if (Opt_S) printf("/* %2d: %-100s */\n", yylineno - 1, buf); 
               buf[0] = '\0'; 
             }
 
  /* single line comment */
-"//"        { LIST;
-              char c; 
-              while((c = input()) != '\n' && c != EOF) LIST; 
-              if(c == '\n') unput(c); 
-            }
+"//"[^\r]*  { LIST; }
 
  /* multi line comment */
 "(*"        { LIST; BEGIN(COMMENT); }
 <COMMENT>"*)" { LIST; BEGIN(INITIAL); }
 <COMMENT>\n { 
-              LIST; 
-              if (Opt_S) printf("%02d: %s", yylineno - 1, buf); 
+              if (Opt_S) printf("/* %2d: %-100s */\n", yylineno - 1, buf); 
               buf[0] = '\0'; 
             }
+<COMMENT>\r
 <COMMENT>.  { LIST; }
 
 "program"   token(PROGRAM);
@@ -142,12 +138,10 @@ char *string_buf_ptr;
               if(Opt_T) printf("<string: %s>\n", string_buf);
               return STR_CONST;
             }
-<STRING>\n  { 
-              LIST; 
-              printf("\n%02d: Lex Error: Unterminated string\n", yylineno - 1); 
-              if (Opt_S) printf("%02d: %s", yylineno - 1, buf); 
-              buf[0] = '\0'; 
-              BEGIN(INITIAL);
+<STRING>\n  {
+              if (Opt_S) printf("/* %02d: %s */\n", yylineno - 1, buf); 
+              printf("\n%02d: Lex Error: \\n is not allowed in string\n", yylineno - 1);
+              exit(1);
             }
 <STRING>.   { 
               LIST; 
@@ -155,11 +149,14 @@ char *string_buf_ptr;
             }
 
 .           { 
-              LIST; 
-              printf("\n%02d: Lex Error: Unrecognized character: '%s'\n", yylineno, yytext); 
+              if (Opt_S) printf("/* %02d: %s */\n", yylineno - 1, buf); 
+              printf("\n%02d: Lex Error: Unrecognized character: '%s'\n", yylineno, yytext);
+              exit(1);
             }
 %%
 
 int yywrap() {
+    if (Opt_S) printf("/* %2d: %-100s */\n", yylineno, buf); 
+    buf[0] = '\0';
     return 1;
 }

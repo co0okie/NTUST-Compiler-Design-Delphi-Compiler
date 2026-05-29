@@ -1,4 +1,4 @@
-.PHONY: all clean verify
+.PHONY: all clean verify run
 
 CC=cc
 LEX=lex
@@ -6,11 +6,11 @@ YACC=yacc
 EXE=parser
 
 TEST_DIR=testcase
-# TEST=example.del
+TEST=example.del
 # TEST=fib.del
 # TEST=HelloWorld.del
 # TEST=sigma.del
-TEST=tricky.del
+# TEST=tricky.del
 TESTCASE=$(TEST_DIR)/$(TEST)
 
 # 自動抓取 testcase 目錄下的檔案
@@ -30,7 +30,7 @@ $(EXE): src/lex.yy.c src/y.tab.c
 src/lex.yy.c: src/lex.l
 	$(LEX) -o src/lex.yy.c $<
 
-src/y.tab.c: src/yacc.y
+src/y.tab.c src/y.tab.h: src/yacc.y
 	$(YACC) -o src/y.tab.c -d $<
 
 clean:

@@ -18,7 +18,7 @@ To build and run this project, you need the following tools installed on your sy
 Compile the parser using the provided Makefile:
 
 ```bash
-make all
+make
 ```
 
 This will generate an executable named parser.
@@ -54,3 +54,8 @@ To remove all generated files and executables, run:
 ```bash
 make clean
 ```
+
+# Changelog
+
+- remove real, array type variable, and read statement.
+- string is restricted to constant and string literal.
