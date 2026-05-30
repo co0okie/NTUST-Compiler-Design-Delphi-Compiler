@@ -5,18 +5,18 @@ LEX=lex
 YACC=yacc
 EXE=parser
 
+SRCS=src/ast.c
+
 TEST_DIR=testcase
-TEST=example.del
+# TEST=example.del
 # TEST=fib.del
 # TEST=HelloWorld.del
 # TEST=sigma.del
-# TEST=tricky.del
+TEST=tricky.del
 TESTCASE=$(TEST_DIR)/$(TEST)
 
-# 自動抓取 testcase 目錄下的檔案
 ALL_TESTS=$(wildcard $(TEST_DIR)/*.del)
 ERR_TESTS=$(wildcard $(TEST_DIR)/err_*.del)
-# 使用 filter-out 過濾掉錯誤測資，剩下的就是預期正確的測資
 PASS_TESTS=$(filter-out $(ERR_TESTS), $(ALL_TESTS))
 
 all: $(EXE)
@@ -24,7 +24,7 @@ all: $(EXE)
 run: $(EXE)
 	./$(EXE) < $(TESTCASE)
 
-$(EXE): src/lex.yy.c src/y.tab.c
+$(EXE): src/lex.yy.c src/y.tab.c $(SRCS)
 	$(CC) $^ -o $(EXE)
 
 src/lex.yy.c: src/lex.l

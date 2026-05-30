@@ -2,11 +2,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <assert.h>
+#include "ast.h"
 
 #define Reduce(l, r) if (LOG_TRACE) printf("/* %2d: %16s <= %-80s */\n", yylineno, l, r)
 #define Trace(t)  if (LOG_TRACE) printf("/* %2d: %-100s */\n", yylineno, t)
-int LOG_TRACE = 0;
-int LOG_TABLE = 0;
+int LOG_TRACE = 1;
+int LOG_TABLE = 1;
+int LOG_JASM = 0;
 
 extern int yylineno;
 extern int yylex();
@@ -17,14 +20,6 @@ void yyerror(const char *msg);
  *======================================================*/
 #define HASH_SIZE 211
 #define MAX_ID_LEN 50
-
-typedef enum { 
-    TYPE_INT, 
-    TYPE_BOOL, 
-    TYPE_STR, 
-    TYPE_VOID, 
-    TYPE_UNKNOWN 
-} DataType;
 
 typedef struct _ParamNode {
     DataType type;
@@ -39,11 +34,18 @@ typedef enum {
 } SymbolKind;
 
 typedef struct _Entry {
-    char name[MAX_ID_LEN];
-    SymbolKind kind;         
-    DataType type;           
+    char* name;
+    SymbolKind kind;
+    DataType type;
     
     union {
+        struct {
+            int is_initialized;
+            int is_global;
+            int index;
+            int val;
+        } var;
+
         struct {
             union {
                 int int_val;
@@ -53,7 +55,7 @@ typedef struct _Entry {
         } const_;
         
         struct {
-            ParamNode* param_list; 
+            ParamNode* param_list;
         } subprog;
     } as;
     
@@ -63,12 +65,16 @@ typedef struct _Entry {
 
 typedef struct _Scope {
     Entry* table[HASH_SIZE];
-    Entry* order_head;       
-    Entry* order_tail;       
-    struct _Scope *next;
+    // order_head -- entry->next_in_scope -- entry->next_in_scope -- ... -- order_tail
+    Entry* order_head;
+    Entry* order_tail;
+    int local_index;
+    struct _Scope *next; // outer scope
 } Scope;
 
 Scope* current_scope = NULL;
+char* program_id;
+int label_counter = 0;
 
 const char* type_to_string(DataType t) {
     switch(t) {
@@ -88,54 +94,58 @@ unsigned long hash_djb2(const char *str) {
     return hash;
 }
 
-void push_scope() {
+void push_scope(int reset_local_index) {
     Scope* new_scope = (Scope*)malloc(sizeof(Scope));
     for (int i = 0; i < HASH_SIZE; i++) {
         new_scope->table[i] = NULL;
     }
     new_scope->order_head = NULL;
     new_scope->order_tail = NULL;
+    new_scope->local_index = reset_local_index ? 0 : current_scope->local_index;
     new_scope->next = current_scope;
     current_scope = new_scope;
     Trace("Scope Pushed");
 }
 
+void print_symbol_table(Scope* scope) {
+    printf("%2d: Scope Popped, Symbol Table:\n", yylineno);
+    for (Entry* curr = scope->order_head; curr != NULL; curr = curr->next_in_scope) {
+        if (curr->kind == SYM_PROC || curr->kind == SYM_FUNC) {
+            printf("    %s: %s(", curr->name, type_to_string(curr->type));
+            ParamNode* pnode = curr->as.subprog.param_list;
+            while (pnode != NULL) {
+                printf("%s%s", type_to_string(pnode->type), pnode->next ? ", " : "");
+                pnode = pnode->next;
+            }
+            printf(")\n");
+        } else if (curr->kind == SYM_CONST) {
+            printf("    %s: const %s ", curr->name, type_to_string(curr->type));
+            if (curr->type == TYPE_INT) {
+                printf("%d\n", curr->as.const_.val.int_val);
+            } else if (curr->type == TYPE_BOOL) {
+                printf("%s\n", curr->as.const_.val.bool_val ? "true" : "false");
+            } else if (curr->type == TYPE_STR) {
+                printf("\"%s\"\n", curr->as.const_.val.str_val);
+            } else {
+                printf("unknown\n");
+            }
+        } else if (curr->kind == SYM_VAR) {
+            printf("    %s: %s", curr->name, type_to_string(curr->type));
+            if (curr->as.var.is_initialized)
+                printf(" %d", curr->as.var.val);
+            if (curr->as.var.is_global)
+                printf(", global");
+            else
+                printf(", local index %d", curr->as.var.index);
+            printf("\n");
+        }
+    }
+}
+
 void pop_scope() {
     if (current_scope == NULL) return;
     
-    if (LOG_TABLE) {
-        printf("%2d: Scope Popped, Symbol Table:\n", yylineno);
-        Entry* curr = current_scope->order_head;
-        while (curr != NULL) {
-            if (curr->kind == SYM_PROC || curr->kind == SYM_FUNC) {
-                printf("    %s: %s(", curr->name, curr->kind == SYM_PROC ? "procedure" : "function");
-                ParamNode* pnode = curr->as.subprog.param_list;
-                while (pnode != NULL) {
-                    printf("%s%s", type_to_string(pnode->type), pnode->next ? ", " : "");
-                    pnode = pnode->next;
-                }
-                if (curr->kind == SYM_FUNC) {
-                    printf("): %s\n", type_to_string(curr->type));
-                } else {
-                    printf(")\n");
-                }
-            } else if (curr->kind == SYM_CONST) {
-                printf("    %s: const %s ", curr->name, type_to_string(curr->type));
-                if (curr->type == TYPE_INT) {
-                    printf("%d\n", curr->as.const_.val.int_val);
-                } else if (curr->type == TYPE_BOOL) {
-                    printf("%s\n", curr->as.const_.val.bool_val ? "true" : "false");
-                } else if (curr->type == TYPE_STR) {
-                    printf("\"%s\"\n", curr->as.const_.val.str_val);
-                } else {
-                    printf("unknown\n");
-                }
-            } else {
-                printf("    %s: %s\n", curr->name, type_to_string(curr->type));
-            }
-            curr = curr->next_in_scope;
-        }
-    }
+    if (LOG_TABLE) print_symbol_table(current_scope);
     
     Scope* temp = current_scope;
     current_scope = current_scope->next;
@@ -155,7 +165,7 @@ void pop_scope() {
                     pnode = next_pnode;
                 }
             }
-            
+            free(curr->name);
             free(curr);
             curr = next;
         }
@@ -178,8 +188,7 @@ Entry* insert_symbol(const char* name, SymbolKind kind, DataType type) {
     }
     
     Entry* new_entry = (Entry*)malloc(sizeof(Entry));
-    strncpy(new_entry->name, name, MAX_ID_LEN - 1);
-    new_entry->name[MAX_ID_LEN - 1] = '\0';
+    new_entry->name = strdup(name);
     new_entry->kind = kind;
     new_entry->type = type;
     
@@ -217,110 +226,6 @@ Entry* lookup_symbol(const char* name) {
     }
     return NULL; 
 }
-
-/*======================================================
- * Abstract Syntax Tree (AST)
- *======================================================*/
-typedef enum _NodeType {
-    AST_ID,             
-    AST_CONST_INT,      
-    AST_CONST_BOOL,     
-    AST_CONST_STR,      
-    AST_RUNTIME_EXPR,   
-    AST_INVOKE
-} NodeType;
-
-typedef struct _ASTNode {
-    NodeType node_type;
-    struct _ASTNode* next;    
-    
-    union {
-        struct {
-            DataType data_type;       
-            int is_const;             
-            char original_id[MAX_ID_LEN]; 
-            
-            union {
-                int int_val;              
-                int bool_val;             
-                char* str_val;            
-            } attr;
-        } expr;
-        
-        struct {
-        } stmt;
-        
-        struct {
-        } decl;
-        
-    } as;
-} ASTNode;
-
-ASTNode* allocate_node(NodeType nt, DataType dt) {
-    ASTNode* node = (ASTNode*)malloc(sizeof(ASTNode));
-    node->node_type = nt;
-    node->next = NULL;
-    node->as.expr.data_type = dt;
-    node->as.expr.is_const = (nt == AST_CONST_INT || nt == AST_CONST_BOOL || nt == AST_CONST_STR);
-    node->as.expr.original_id[0] = '\0';
-    return node;
-}
-
-ASTNode* create_id_node(const char* name) {
-    ASTNode* node = allocate_node(AST_ID, TYPE_UNKNOWN);
-    strncpy(node->as.expr.original_id, name, MAX_ID_LEN - 1);
-    node->as.expr.original_id[MAX_ID_LEN - 1] = '\0';
-    return node;
-}
-
-ASTNode* create_int_node(int val) {
-    ASTNode* node = allocate_node(AST_CONST_INT, TYPE_INT);
-    node->as.expr.attr.int_val = val;
-    return node;
-}
-
-ASTNode* create_bool_node(int val) {
-    ASTNode* node = allocate_node(AST_CONST_BOOL, TYPE_BOOL);
-    node->as.expr.attr.bool_val = val;
-    return node;
-}
-
-ASTNode* create_str_node(const char* val) {
-    ASTNode* node = allocate_node(AST_CONST_STR, TYPE_STR);
-    node->as.expr.attr.str_val = strdup(val);
-    return node;
-}
-
-ASTNode* create_runtime_node(DataType dt) {
-    return allocate_node(AST_RUNTIME_EXPR, dt);
-}
-
-ASTNode* create_invoke_node(DataType dt) {
-    return allocate_node(AST_INVOKE, dt);
-}
-
-void append_ast_node(ASTNode* list, ASTNode* node) {
-    if (!list || !node) return;
-    while (list->next != NULL) {
-        list = list->next;
-    }
-    list->next = node;
-}
-
-void free_ast(ASTNode* node) {
-    while (node != NULL) {
-        ASTNode* next = node->next;
-        if (node->node_type == AST_CONST_STR && node->as.expr.attr.str_val != NULL) {
-            free(node->as.expr.attr.str_val);
-        }
-        free(node);
-        node = next;
-    }
-}
-
-ASTNode* evaluate_binary_op(int op, ASTNode* left, ASTNode* right);
-ASTNode* evaluate_unary_op(int op, ASTNode* operand);
-
 %}
 
 %union {
@@ -349,7 +254,7 @@ ASTNode* evaluate_unary_op(int op, ASTNode* operand);
 
 /* Non-terminal types */
 %type <type_val> type 
-%type <ast_node> expr opt_expr_list expr_list id_list opt_formal_args formal_args formal_arg opt_init id_opt_invoke opt_invoke boolean_expr
+%type <ast_node> expr const_expr opt_expr_list expr_list id_list var_decl decl opt_decls opt_params params param opt_init id_opt_invoke opt_invoke boolean_expr
 
 /* Precedence */
 %nonassoc LOWER_THAN_ELSE 
@@ -360,93 +265,50 @@ ASTNode* evaluate_unary_op(int op, ASTNode* operand);
 %left EQ NEQ LT LE GT GE
 %left ADD SUB
 %left MUL DIV MOD
-%right UMINUS
+%right NEG
 
 %%
 
 program:
     PROGRAM ID SEMICOLON {
-        push_scope(); 
+        if (LOG_JASM) printf("class %s {\n", $2);
+        program_id = $2;
+        push_scope(1);
     }
-    opt_decls 
-    opt_subprograms 
-    BEGIN_KW 
+    opt_decls {
+        for (Entry* curr = current_scope->order_head; curr != NULL; curr = curr->next_in_scope) {
+            if (curr->kind != SYM_VAR) continue;
+            curr->as.var.is_global = 1;
+            if (!LOG_JASM) continue;
+            printf("field static int %s", curr->name);
+            if (curr->as.var.is_initialized) printf(" = %d", curr->as.var.val);
+            printf("\n");
+        }
+    }
+    opt_subprograms {
+    }
+    BEGIN_KW {
+        if (LOG_JASM) {
+            printf("  method public static void main(java.lang.String[])\n");
+            printf("  max_stack 15\n");
+            printf("  max_locals 15 {\n");
+        }
+    }
     opt_stmts 
     END ID DOT {
-        if (strcmp($2, $10) != 0) {
+        if (strcmp($2, $13) != 0) {
             yyerror("Program end identifier does not match start identifier.");
             YYABORT;
         }
         pop_scope();
-        free($2); free($10);
+        free($2); free($13);
+        if (LOG_JASM) {
+            printf("    return\n");
+            printf("  }\n");
+            printf("}\n");
+        }
         Reduce("program", "PROGRAM ID ; opt_decls opt_subprograms BEGIN opt_stmts END ID .");
     } ;
-
-opt_decls:
-    opt_decls decl |
-    /* empty */ ;
-
-decl:
-    const_decl |
-    var_decl ;
-
-const_decl:
-    CONST ID EQ expr SEMICOLON {
-        Reduce("const_decl", "CONST ID = expr ;");
-        if (!$4->as.expr.is_const) {
-            yyerror("Const expression must be evaluated at compile time.");
-            YYABORT;
-        }
-        
-        Entry* sym = insert_symbol($2, SYM_CONST, $4->as.expr.data_type);
-        if (sym == NULL) YYABORT;
-        if ($4->as.expr.data_type == TYPE_INT) sym->as.const_.val.int_val = $4->as.expr.attr.int_val;
-        else if ($4->as.expr.data_type == TYPE_BOOL) sym->as.const_.val.bool_val = $4->as.expr.attr.bool_val;
-        else if ($4->as.expr.data_type == TYPE_STR) sym->as.const_.val.str_val = strdup($4->as.expr.attr.str_val);
-        free($2);
-        free_ast($4);
-    } ;
-
-var_decl:
-    VAR id_list COLON type opt_init SEMICOLON {
-        Reduce("var_decl", "VAR id_list : type opt_init ;");
-        if ($4 == TYPE_STR) {
-            yyerror("string variable is not supported.");
-            YYABORT;
-        }
-        if ($5 && $4 != $5->as.expr.data_type) {
-            yyerror("variable type does not match initializer type."); 
-            YYABORT;
-        }
-        ASTNode* curr = $2;
-        while (curr != NULL) {
-            Entry* sym = insert_symbol(curr->as.expr.original_id, SYM_VAR, (DataType)$4);
-            if (sym == NULL) YYABORT;
-            curr = curr->next;
-        }
-        free_ast($2);
-        if ($5) free_ast($5);
-    } |
-    VAR id_list COLON ARRAY LBRACK INT_CONST COMMA INT_CONST RBRACK OF type SEMICOLON {
-        yyerror("array is not supported.");
-        YYABORT;
-    } ;
-
-id_list:
-    id_list COMMA ID {
-        ASTNode* node = create_id_node($3);
-        $$ = $1;
-        append_ast_node($$, node);
-        free($3); 
-    } |
-    ID {
-        $$ = create_id_node($1);
-        free($1);
-    } ;
-
-opt_init:
-    EQ expr { $$ = $2; } |
-    /* empty */ { $$ = NULL; } ;
 
 opt_subprograms:
     opt_subprograms subprogram |
@@ -460,29 +322,31 @@ func_decl:
     FUNCTION ID  { 
         Entry* sym = insert_symbol($2, SYM_FUNC, TYPE_UNKNOWN);
         if (sym == NULL) YYABORT;
-        push_scope();
+        push_scope(1);
     }
-    opt_formal_args COLON type SEMICOLON {
+    opt_params COLON type SEMICOLON {
+        if ($6 == TYPE_STR) {
+            yyerror("function of return type string is not supported.");
+            YYABORT;
+        }
         Entry* sym = lookup_symbol($2);
         if (sym != NULL) {
-            sym->type = (DataType)$6; 
-            ASTNode* curr = $4;
+            sym->type = (DataType)$6;
             ParamNode** tail = &(sym->as.subprog.param_list);
-            while (curr != NULL) {
+            for (ASTNode* curr = $4->as.list.head; curr != NULL; curr = curr->next) {
+                assert(curr->node_type == AST_PARAM);
                 *tail = (ParamNode*)malloc(sizeof(ParamNode));
-                (*tail)->type = curr->as.expr.data_type;
+                (*tail)->type = curr->as.param.type;
                 (*tail)->next = NULL;
                 tail = &((*tail)->next);
-                
-                curr = curr->next;
             }
         }
     }
-    opt_decls 
+    opt_local_decls 
     BEGIN_KW 
     stmts 
     END ID SEMICOLON {
-        Reduce("func_decl", "FUNCTION ID opt_formal_args : type ; opt_decls BEGIN stmts END ID ;");
+        Reduce("func_decl", "FUNCTION ID opt_params : type ; opt_decls BEGIN stmts END ID ;");
         if (strcmp($2, $13) != 0) {
             yyerror("Function end identifier does not match.");
             YYABORT;
@@ -496,28 +360,26 @@ proc_decl:
     PROCEDURE ID  { 
         Entry* sym = insert_symbol($2, SYM_PROC, TYPE_VOID); 
         if (sym == NULL) YYABORT;
-        push_scope(); 
+        push_scope(1);
     }
-    opt_formal_args SEMICOLON {
+    opt_params SEMICOLON {
         Entry* sym = lookup_symbol($2);
         if (sym != NULL) {
-            ASTNode* curr = $4;
             ParamNode** tail = &(sym->as.subprog.param_list);
-            while (curr != NULL) {
+            for (ASTNode* curr = $4->as.list.head; curr != NULL; curr = curr->next) {
+                assert(curr->node_type == AST_PARAM);
                 *tail = (ParamNode*)malloc(sizeof(ParamNode));
-                (*tail)->type = curr->as.expr.data_type;
+                (*tail)->type = curr->as.param.type;
                 (*tail)->next = NULL;
                 tail = &((*tail)->next);
-                
-                curr = curr->next;
             }
         }
     }
-    opt_decls 
+    opt_local_decls 
     BEGIN_KW 
     stmts 
     END ID SEMICOLON {
-        Reduce("proc_decl", "PROCEDURE ID opt_formal_args ; opt_decls BEGIN stmts END ID ;");
+        Reduce("proc_decl", "PROCEDURE ID opt_params ; opt_decls BEGIN stmts END ID ;");
         if (strcmp($2, $11) != 0) {
             yyerror("Procedure end identifier does not match.");
             YYABORT;
@@ -527,26 +389,33 @@ proc_decl:
         if ($4) free_ast($4);
     } ;
 
-opt_formal_args:
-    LPAREN formal_args RPAREN { $$ = $2; } |
-    /* empty */               { $$ = NULL; } ;
+opt_params:
+    LPAREN params RPAREN { $$ = $2; } |
+    /* empty */          { $$ = new_list_node(); } ;
 
-formal_args:
-    formal_args COMMA formal_arg {
+params:
+    params COMMA param {
         $$ = $1;
-        append_ast_node($$, $3);
+        append_ast_node(&$1->as.list, $3);
     } |
-    formal_arg {
-        $$ = $1;
+    param {
+        $$ = new_list_node();
+        append_ast_node(&$$->as.list, $1);
     } ;
 
-formal_arg:
+param:
     ID COLON type {
-        Reduce("formal_arg", "ID : type");
+        Reduce("param", "ID : type");
+        if ($3 == TYPE_STR) {
+            yyerror("string parameter is not supported.");
+            YYABORT;
+        }
         Entry* sym = insert_symbol($1, SYM_VAR, (DataType)$3);
         if (sym == NULL) YYABORT;
-        $$ = create_id_node($1);
-        $$->as.expr.data_type = (DataType)$3;
+        sym->as.var.index = current_scope->local_index++;
+        sym->as.var.is_initialized = 0;
+        sym->as.var.is_global = 0;
+        $$ = new_param_node($1, (DataType)$3);
         free($1);
     } ;
 
@@ -578,7 +447,9 @@ simple_stmt:
     ID ASSIGN expr SEMICOLON {
         Reduce("simple_stmt", "ID := expr ;");
         Entry* sym = lookup_symbol($1);
-        if (sym == NULL) { yyerror("Undeclared identifier."); YYABORT; }
+        if (sym == NULL) {
+            char s[256]; sprintf(s, "Undeclared identifier '%s'.", $1); yyerror(s); YYABORT;
+        }
         if (sym->kind == SYM_CONST) { yyerror("Cannot assign to constant."); YYABORT; }
         if (sym->kind == SYM_FUNC || sym->kind == SYM_PROC) { yyerror("Cannot assign to function/procedure."); YYABORT; }
         if (sym->type != $3->as.expr.data_type && $3->as.expr.data_type != TYPE_UNKNOWN && sym->type != TYPE_UNKNOWN) {
@@ -608,21 +479,12 @@ simple_stmt:
 
 block_stmt:
     BEGIN_KW {
-        push_scope(); 
+        push_scope(0);
     }
-    opt_decls stmts
+    opt_local_decls stmts
     END SEMICOLON {
         Reduce("block_stmt", "BEGIN opt_decls stmts END ;");
         pop_scope(); 
-    } ;
-
-boolean_expr:
-    expr {
-        if ($1->as.expr.data_type != TYPE_BOOL && $1->as.expr.data_type != TYPE_UNKNOWN) {
-            yyerror("Condition expression must be boolean.");
-            YYABORT;
-        }
-        $$ = $1;
     } ;
 
 conditional_stmt:
@@ -644,8 +506,7 @@ loop_stmt:
         Reduce("loop_stmt", "WHILE boolean_expr DO stmt");
         free_ast($2);
     } |
-    FOR ID ASSIGN expr TO expr DO stmt {
-        Reduce("loop_stmt", "FOR ID := expr TO expr DO stmt");
+    FOR ID ASSIGN expr TO expr {
         Entry* sym = lookup_symbol($2);
         if (sym == NULL) { yyerror("For-loop counter undeclared."); YYABORT; }
         if (sym->type != TYPE_INT) { yyerror("For-loop counter must be integer."); YYABORT; }
@@ -653,6 +514,8 @@ loop_stmt:
             yyerror("For-loop bounds must be integer."); YYABORT;
         }
         free($2); free_ast($4); free_ast($6);
+    } DO stmt {
+        Reduce("loop_stmt", "FOR ID := expr TO expr DO stmt");
     } ;
 
 procedure_invoke:
@@ -665,22 +528,127 @@ procedure_invoke:
         free_ast($1);
     } ;
 
+opt_local_decls:
+    opt_decls {
+        for (ASTNode* n = $1->as.list.head; n != NULL; n = n->next) {
+            Entry* sym = lookup_symbol(n->as.id);
+            if (sym->kind != SYM_VAR) continue;
+            sym->as.var.index = current_scope->local_index++;
+            sym->as.var.is_global = 0;
+            if (!LOG_JASM) continue;
+            if (!sym->as.var.is_initialized) continue;
+            printf("    sipush %d\n", sym->as.var.val);
+            printf("    istore %d\n", sym->as.var.index);
+        }
+        free_ast($1);
+    } ;
+
+opt_decls:
+    opt_decls decl {
+        $$ = $1;
+        // concat $1 and $2
+        if ($$->as.list.tail) $$->as.list.tail->next = $2->as.list.head;
+        else $$->as.list.head = $2->as.list.head;
+        $$->as.list.tail = $2->as.list.tail;
+        free($2); // not free_ast, to keep list alive
+    } |
+    /* empty */ { $$ = new_list_node(); } ;
+
+decl:
+    const_decl { $$ = new_list_node(); } |
+    var_decl { $$ = $1; } ;
+
+const_decl:
+    CONST ID EQ const_expr SEMICOLON {
+        Reduce("const_decl", "CONST ID = expr ;");
+        Entry* sym = insert_symbol($2, SYM_CONST, $4->as.expr.data_type);
+        if (sym == NULL) YYABORT;
+        if ($4->as.expr.data_type == TYPE_INT) sym->as.const_.val.int_val = $4->as.expr.as.int_val;
+        else if ($4->as.expr.data_type == TYPE_BOOL) sym->as.const_.val.bool_val = $4->as.expr.as.bool_val;
+        else if ($4->as.expr.data_type == TYPE_STR) sym->as.const_.val.str_val = strdup($4->as.expr.as.str_val);
+        free($2);
+        free_ast($4);
+    } ;
+
+var_decl:
+    VAR id_list COLON type opt_init SEMICOLON {
+        Reduce("var_decl", "VAR id_list : type opt_init ;");
+        if ($4 == TYPE_STR) {
+            yyerror("string variable is not supported.");
+            YYABORT;
+        }
+        if ($5 && $4 != $5->as.expr.data_type) {
+            yyerror("variable type does not match initializer type."); 
+            YYABORT;
+        }
+        for (ASTNode* curr = $2->as.list.head; curr != NULL; curr = curr->next) {
+            Entry* sym = insert_symbol(curr->as.id, SYM_VAR, (DataType)$4);
+            if (sym == NULL) YYABORT;
+            if ($5) {
+                sym->as.var.is_initialized = 1;
+                sym->as.var.val = $5->as.expr.as.int_val;
+            } else {
+                sym->as.var.is_initialized = 0;
+            }
+        }
+        $$ = $2;
+        if ($5) free_ast($5);
+    } |
+    VAR id_list COLON ARRAY LBRACK INT_CONST COMMA INT_CONST RBRACK OF type SEMICOLON {
+        yyerror("array is not supported.");
+        YYABORT;
+    } ;
+
+id_list:
+    id_list COMMA ID {
+        $$ = $1;
+        append_ast_node(&$$->as.list, new_id_node($3));
+        free($3);
+    } |
+    ID {
+        $$ = new_list_node();
+        append_ast_node(&$$->as.list, new_id_node($1));
+        free($1);
+    } ;
+
+opt_init:
+    EQ const_expr { $$ = $2; } |
+    /* empty */ { $$ = NULL; } ;
+
+const_expr:
+    expr {
+        if (!$1->as.expr.is_const) {
+            yyerror("Const expression must be evaluated at compile time.");
+            YYABORT;
+        }
+        $$ = $1;
+    }
+
+boolean_expr:
+    expr {
+        if ($1->as.expr.data_type != TYPE_BOOL && $1->as.expr.data_type != TYPE_UNKNOWN) {
+            yyerror("Condition expression must be boolean.");
+            YYABORT;
+        }
+        $$ = $1;
+    } ;
+
 expr:
-    expr OR expr   { $$ = evaluate_binary_op(OR, $1, $3); if (!$$) YYABORT; } |
-    expr AND expr  { $$ = evaluate_binary_op(AND, $1, $3); if (!$$) YYABORT; } |
-    NOT expr       { $$ = evaluate_unary_op(NOT, $2); if (!$$) YYABORT; } |
-    expr EQ expr   { $$ = evaluate_binary_op(EQ, $1, $3); if (!$$) YYABORT; } |
-    expr NEQ expr  { $$ = evaluate_binary_op(NEQ, $1, $3); if (!$$) YYABORT; } |
-    expr LT expr   { $$ = evaluate_binary_op(LT, $1, $3); if (!$$) YYABORT; } |
-    expr LE expr   { $$ = evaluate_binary_op(LE, $1, $3); if (!$$) YYABORT; } |
-    expr GT expr   { $$ = evaluate_binary_op(GT, $1, $3); if (!$$) YYABORT; } |
-    expr GE expr   { $$ = evaluate_binary_op(GE, $1, $3); if (!$$) YYABORT; } |
-    expr ADD expr  { $$ = evaluate_binary_op(ADD, $1, $3); if (!$$) YYABORT; } |
-    expr SUB expr  { $$ = evaluate_binary_op(SUB, $1, $3); if (!$$) YYABORT; } |
-    expr MUL expr  { $$ = evaluate_binary_op(MUL, $1, $3); if (!$$) YYABORT; } |
-    expr DIV expr  { $$ = evaluate_binary_op(DIV, $1, $3); if (!$$) YYABORT; } |
-    expr MOD expr  { $$ = evaluate_binary_op(MOD, $1, $3); if (!$$) YYABORT; } |
-    SUB expr %prec UMINUS { $$ = evaluate_unary_op(SUB, $2); if (!$$) YYABORT; } |
+    expr OR expr   { $$ = new_expr_binary_op_node(OR, $1, $3); if (!$$) YYABORT; } |
+    expr AND expr  { $$ = new_expr_binary_op_node(AND, $1, $3); if (!$$) YYABORT; } |
+    NOT expr       { $$ = new_expr_unary_op_node(NOT, $2); if (!$$) YYABORT; } |
+    expr EQ expr   { $$ = new_expr_binary_op_node(EQ, $1, $3); if (!$$) YYABORT; } |
+    expr NEQ expr  { $$ = new_expr_binary_op_node(NEQ, $1, $3); if (!$$) YYABORT; } |
+    expr LT expr   { $$ = new_expr_binary_op_node(LT, $1, $3); if (!$$) YYABORT; } |
+    expr LE expr   { $$ = new_expr_binary_op_node(LE, $1, $3); if (!$$) YYABORT; } |
+    expr GT expr   { $$ = new_expr_binary_op_node(GT, $1, $3); if (!$$) YYABORT; } |
+    expr GE expr   { $$ = new_expr_binary_op_node(GE, $1, $3); if (!$$) YYABORT; } |
+    expr ADD expr  { $$ = new_expr_binary_op_node(ADD, $1, $3); if (!$$) YYABORT; } |
+    expr SUB expr  { $$ = new_expr_binary_op_node(SUB, $1, $3); if (!$$) YYABORT; } |
+    expr MUL expr  { $$ = new_expr_binary_op_node(MUL, $1, $3); if (!$$) YYABORT; } |
+    expr DIV expr  { $$ = new_expr_binary_op_node(DIV, $1, $3); if (!$$) YYABORT; } |
+    expr MOD expr  { $$ = new_expr_binary_op_node(MOD, $1, $3); if (!$$) YYABORT; } |
+    SUB expr %prec NEG { $$ = new_expr_unary_op_node(NEG, $2); if (!$$) YYABORT; } |
     LPAREN expr RPAREN    { $$ = $2; } |
     id_opt_invoke {
         if ($1->as.expr.data_type == TYPE_VOID) {
@@ -689,14 +657,14 @@ expr:
         }
         $$ = $1;
     } |
-    INT_CONST { $$ = create_int_node($1); } |
+    INT_CONST { $$ = new_expr_int_node($1); } |
     REAL_CONST {
         yyerror("real constants are not supported."); 
         YYABORT;
     } |
-    STR_CONST { $$ = create_str_node($1); free($1); } |
-    TRUE_KW { $$ = create_bool_node(1); } |
-    FALSE_KW { $$ = create_bool_node(0); } ;
+    STR_CONST { $$ = new_expr_str_node($1); free($1); } |
+    TRUE_KW { $$ = new_expr_bool_node(1); } |
+    FALSE_KW { $$ = new_expr_bool_node(0); } ;
 
 /* -----------------------------------------------------
  * Invoke Engine: Handles Variable Resolution & Calling
@@ -715,23 +683,25 @@ id_opt_invoke:
                     char msg[256]; sprintf(msg, "Too few arguments in call to '%s'.", $1); yyerror(msg);
                     YYABORT;
                 } else {
-                    $$ = create_invoke_node(sym->type);
+                    $$ = new_expr_invoke_node(sym->type, sym->name, new_list());
                 }
             } else if (sym->kind == SYM_CONST) {
-                if (sym->type == TYPE_INT) $$ = create_int_node(sym->as.const_.val.int_val);
-                else if (sym->type == TYPE_BOOL) $$ = create_bool_node(sym->as.const_.val.bool_val);
-                else if (sym->type == TYPE_STR) $$ = create_str_node(sym->as.const_.val.str_val);
-                else $$ = create_runtime_node(sym->type);
-            } else {
-                $$ = create_runtime_node(sym->type);
+                $$ = sym->type == TYPE_INT ?
+                    new_expr_int_node(sym->as.const_.val.int_val) :
+                    sym->type == TYPE_BOOL ?
+                    new_expr_bool_node(sym->as.const_.val.bool_val) :
+                    new_expr_str_node(sym->as.const_.val.str_val);
+            } else { // variable
+                $$ = sym->as.var.is_global ?
+                    new_expr_global_var_node($1, sym->type) :
+                    new_expr_local_var_node(sym->as.var.index, sym->type);
             }
         } else { /* Call with parentheses */
-            ASTNode* args = $2->next;
             if (sym->kind != SYM_FUNC && sym->kind != SYM_PROC) {
                 char msg[256]; sprintf(msg, "'%s' is not a function/procedure.", $1); yyerror(msg);
                 YYABORT;
             } else {
-                ASTNode* curr_arg = args;
+                ASTNode* curr_arg = $2->as.list.head;
                 ParamNode* curr_param = sym->as.subprog.param_list;
                 int arg_index = 1;
                 while (curr_param != NULL) {
@@ -748,18 +718,11 @@ id_opt_invoke:
                 if (curr_param == NULL && curr_arg != NULL) {
                     char msg[256]; sprintf(msg, "Too many arguments in call to '%s'.", $1); yyerror(msg); YYABORT;
                 }
-                $$ = create_invoke_node(sym->type);
+                $$ = new_expr_invoke_node(sym->type, sym->name, $2->as.list);
             }
+            free($2); // not free_ast, to keep expr_list alive
         }
         
-        if ($2) {
-            ASTNode* inner = $2->next;
-            free($2);
-            free_ast(inner);
-        }
-        
-        strncpy($$->as.expr.original_id, $1, MAX_ID_LEN - 1);
-        $$->as.expr.original_id[MAX_ID_LEN - 1] = '\0';
         free($1);
     } ;
 
@@ -769,23 +732,22 @@ opt_invoke:
         YYABORT;
     } |
     LPAREN opt_expr_list RPAREN {
-        ASTNode* head = allocate_node(AST_INVOKE, TYPE_UNKNOWN);
-        head->next = $2;
-        $$ = head;
+        $$ = $2;
     } |
     /* empty */ { $$ = NULL; } ;
 
 opt_expr_list:
     expr_list   { $$ = $1; } |
-    /* empty */ { $$ = NULL; } ;
+    /* empty */ { $$ = new_list_node(); } ;
 
 expr_list:
     expr_list COMMA expr {
         $$ = $1;
-        append_ast_node($$, $3);
+        append_ast_node(&$$->as.list, $3);
     } |
     expr {
-        $$ = $1;
+        $$ = new_list_node();
+        append_ast_node(&$$->as.list, $1);
     } ;
 
 %%
@@ -795,102 +757,17 @@ void yyerror(const char *msg) {
 }
 
 int main(int argc, char** argv) {
-    printf("/*----------------------------------------------------------------------------------------------------------*/\n");
-    printf("/*                                              Java Assembly                                               */\n");
-    printf("/*----------------------------------------------------------------------------------------------------------*/\n");
+    if (LOG_JASM) {
+        printf("/*----------------------------------------------------------------------------------------------------------*/\n");
+        printf("/*                                              Java Assembly                                               */\n");
+        printf("/*----------------------------------------------------------------------------------------------------------*/\n");
+    }
     if (yyparse() == 0) {
         printf("\n=> Syntax & Semantic analysis completed successfully!\n");
         return 0;
     }
+    for (; current_scope; current_scope = current_scope->next) {
+        print_symbol_table(current_scope);
+    }
     return 1;
-}
-
-ASTNode* evaluate_binary_op(int op, ASTNode* left, ASTNode* right) {
-    if (left->as.expr.data_type == TYPE_STR || right->as.expr.data_type == TYPE_STR) {
-        yyerror("String operations are not supported.");
-        return NULL;
-    }
-    
-    if (left->as.expr.data_type != right->as.expr.data_type && left->as.expr.data_type != TYPE_UNKNOWN && right->as.expr.data_type != TYPE_UNKNOWN) {
-        yyerror("Type mismatch: operands must have the same type.");
-        return NULL;
-    }
-    
-    DataType out_type = TYPE_INT; /* Default */
-    switch (op) {
-        case ADD: case SUB: case MUL: case DIV: case MOD:
-            out_type = TYPE_INT;
-            break;
-        case EQ: case NEQ: case LT: case LE: case GT: case GE:
-            out_type = TYPE_BOOL;
-            break;
-        case AND: case OR:
-            out_type = left->as.expr.data_type; /* Logical operation result type matches operands */
-            break;
-    }
-    
-    if (!(left->as.expr.is_const && right->as.expr.is_const)) {
-        free_ast(left); free_ast(right);
-        return create_runtime_node(out_type);
-    }
-    
-    int l_val = (left->node_type == AST_CONST_INT) ? left->as.expr.attr.int_val : left->as.expr.attr.bool_val;
-    int r_val = (right->node_type == AST_CONST_INT) ? right->as.expr.attr.int_val : right->as.expr.attr.bool_val;
-                  
-    ASTNode* result = NULL;
-    switch (op) {
-        case ADD: result = create_int_node(l_val + r_val); break;
-        case SUB: result = create_int_node(l_val - r_val); break;
-        case MUL: result = create_int_node(l_val * r_val); break;
-        case DIV: 
-            if (r_val == 0) { yyerror("Division by zero."); return NULL; }
-            result = create_int_node(l_val / r_val); break;
-        case MOD: 
-            if (r_val == 0) { yyerror("Division by zero."); return NULL; }
-            result = create_int_node(l_val % r_val); break;
-        case EQ:  result = create_bool_node(l_val == r_val); break;
-        case NEQ: result = create_bool_node(l_val != r_val); break;
-        case LT:  result = create_bool_node(l_val < r_val); break;
-        case LE:  result = create_bool_node(l_val <= r_val); break;
-        case GT:  result = create_bool_node(l_val > r_val); break;
-        case GE:  result = create_bool_node(l_val >= r_val); break;
-        case AND: 
-            if (out_type == TYPE_BOOL) result = create_bool_node(l_val && r_val); 
-            else result = create_int_node(l_val & r_val); 
-            break;
-        case OR:  
-            if (out_type == TYPE_BOOL) result = create_bool_node(l_val || r_val); 
-            else result = create_int_node(l_val | r_val);
-            break;
-    }
-    
-    free_ast(left); free_ast(right);
-    return result ? result : create_runtime_node(out_type);
-}
-
-ASTNode* evaluate_unary_op(int op, ASTNode* operand) {
-    if (operand->as.expr.data_type == TYPE_STR) {
-        yyerror("String operations are not supported.");
-        return NULL;
-    }
-    
-    DataType out_type = operand->as.expr.data_type;
-    
-    if (!operand->as.expr.is_const) {
-        free_ast(operand);
-        return create_runtime_node(out_type);
-    }
-    
-    ASTNode* result = NULL;
-    int val = (operand->node_type == AST_CONST_INT) ? operand->as.expr.attr.int_val : operand->as.expr.attr.bool_val;
-    
-    if (op == SUB) { 
-        result = create_int_node(-val);
-    } else if (op == NOT) {
-        if (out_type == TYPE_BOOL) result = create_bool_node(!val);
-        else result = create_int_node(~val); /* Bitwise NOT for integers */
-    }
-    
-    free_ast(operand);
-    return result ? result : create_runtime_node(out_type);
 }
