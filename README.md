@@ -29,7 +29,7 @@ This will generate an executable named `parser`.
 
 The compilation and execution process involves multiple steps, which are simplified by the Makefile. You can configure the target testcase inside the Makefile before running these commands.
 
-**1. Generate Java Assembly (.jasm)**
+### 1. Generate Java Assembly (.jasm)
 Parse the source `.del` code and generate the Java assembly file:
 
 ```bash
@@ -41,7 +41,7 @@ or simply
 make jasm
 ```
 
-**2. Assemble to Java Bytecode (.class)**
+### 2. Assemble to Java Bytecode (.class)
 Use the `javaa` assembler to convert the `.jasm` file into an executable `.class` file:
 
 ```bash
@@ -55,7 +55,7 @@ or simply
 make class
 ```
 
-**3. Run the Program**
+### 3. Run the Program
 Execute the compiled Java bytecode on the JVM:
 
 ```bash
