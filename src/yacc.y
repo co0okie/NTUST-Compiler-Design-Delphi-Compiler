@@ -253,6 +253,7 @@ const char* type_to_jasm(DataType t) {
         case TYPE_BOOL: return "int";
         case TYPE_STR: return "java.lang.String";
         case TYPE_VOID: return "void";
+        case TYPE_UNKNOWN: assert(0);
     }
     return NULL;
 }
@@ -870,7 +871,7 @@ expr_list:
 var_id:
     id {
         if ($1->kind != SYM_VAR) {
-            ERROR("'%s' is not a variable.", $1);
+            ERROR("'%s' is not a variable.", $1->name);
             YYABORT;
         }
         $$ = $1;
@@ -926,7 +927,7 @@ void print_expr_jasm(ASTNode* expr) {
         case AST_CONST_BOOL:
             printf("    %s\n", expr->as.expr.as.bool_val ? "iconst_1" : "iconst_0"); break;
         case AST_CONST_STR:
-            printf("    ldc \"", expr->as.expr.as.str_val);
+            printf("    ldc \"");
             for (char* c = expr->as.expr.as.str_val; *c != '\0'; c++) {
                 if (*c == '"') printf("\\\"");
                 else if (*c == '\'') printf("\\\'");
@@ -994,5 +995,6 @@ void print_expr_jasm(ASTNode* expr) {
                 case NEG: printf("    ineg\n"); break;
             }
             break;
+        default: assert(0);
     }
 }

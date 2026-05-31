@@ -188,6 +188,11 @@ void free_ast(ASTNode* node) {
             break;
         case AST_BINARY_OP: free_ast(node->as.expr.as.op.right);
         case AST_UNARY_OP: free_ast(node->as.expr.as.op.left); break;
+        case AST_PARAM: free(node->as.param.id); break;
+        case AST_LOCAL_VAR: break;
+        case AST_GLOBAL_VAR: free(node->as.expr.as.global_var_name); break;
+        case AST_CONST_INT: break;
+        case AST_CONST_BOOL: break;
     }
     free(node);
 }

@@ -43,7 +43,7 @@ jasm: $(JASM)
 	$(PARSER) < $< | tee $@
 
 $(PARSER): src/lex.yy.c src/y.tab.c $(SRCS)
-	$(CC) $^ -o $(PARSER)
+	$(CC) -Wall $^ -o $(PARSER)
 
 src/lex.yy.c: src/lex.l
 	$(LEX) -o src/lex.yy.c $<
