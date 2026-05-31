@@ -9,7 +9,7 @@
 #define tokenString(t, s) { LIST; if(Opt_T) printf("<%s:%s>\n", t, s); return s; }
 
 int Opt_T = 0; /* output token */
-int Opt_S = 1; /* output source code */
+int Opt_S = 0; /* output source code */
 char buf[256];
 char string_buf[1024];
 char *string_buf_ptr;

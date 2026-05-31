@@ -2,7 +2,7 @@
  * Example with Functions
  *)
 
-program Example;
+program example;
 
 // constants
 const a = 5;
@@ -24,4 +24,4 @@ begin
   else
     write c;
   writeln "Hello World";
-end Example.
+end example.

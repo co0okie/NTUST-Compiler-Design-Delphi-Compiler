@@ -1,6 +1,8 @@
 src/lex.yy.c
 src/y.tab.h
 src/y.tab.c
+/testcase/*.jasm
+/testcase/*.class
 *.out
 lab.c
 lex

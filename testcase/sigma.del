@@ -3,7 +3,7 @@
  * Compute sum = 1 + 2 + ... + n
  *)
 
-program Sigma;
+program sigma;
 
   // constants and variables
   const n = 10;
@@ -21,4 +21,4 @@ begin
 
   write "The sum is ";
   writeln sum;
-end Sigma.
+end sigma.

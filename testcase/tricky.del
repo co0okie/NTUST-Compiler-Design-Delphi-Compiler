@@ -1,127 +1,163 @@
-program UltimateTrickyTest;
+program tricky;
 
 (* =======================================================
- * 1. 全域宣告與極端常數摺疊 (Compile-Time Evaluation)
+ * Constant Folding & Global Initialization
  * ======================================================= *)
-// 測試括號優先級、一元負號與 Mod 運算
-const BASE_OFFSET = -10 + (5 * 4) / 2 mod 3; 
-const MAGIC_NUM = BASE_OFFSET + 42;
-// 測試複雜的 Compile-time Boolean 推導
-const IS_READY = not (BASE_OFFSET = 0) and (MAGIC_NUM >= 40) or false;
-// 合法的字串常數 (String Literals 僅允許作為常數或 write 參數)
-const STR_CONST = "Welcome to the ""Ultimate"" Delphi Subset Compiler Test!";
+const EXPECTED_MATH = -2;
+const STR_START = "--- Starting Extreme JVM Tests ---";
+const STR_END = "--- All Tests Executed ---";
 
-var g_int1, g_int2: integer; 
+var g_result: integer;
 var g_flag: boolean;
-// 測試變數宣告時的 opt_init (你的 Parser 有這條規則，必須能通過並做型別檢查)
-var initializedVar: integer = 900 + ((90 + 9)); 
 
 (* =======================================================
- * 2. 嚴格型別約束與遞迴函式
+ * Test 1: Deep Recursion (JVM Stack Frame Integrity)
  * ======================================================= *)
 function Factorial(n: integer): integer;
 begin
-    // 嚴格 Boolean 條件檢查
-    if n <= 1 then 
+    if n <= 1 then
         return 1;
-    else 
-        return n * Factorial(n - 1); // 遞迴呼叫
+    else
+        return n * Factorial(n - 1);
 end Factorial;
 
-function LogicMagic(a: integer, b: integer, c: boolean): boolean;
-const LOCAL_MULTIPLIER = 2;
-var result: boolean;
+(* =======================================================
+ * Test 2: Complex Arithmetic & Strict Boolean Logic
+ * ======================================================= *)
+function TestMathAndLogic(val: integer, flag: boolean): boolean;
+var math_res: integer;
+var logic_res: boolean;
 begin
-    // 測試 Boolean 變數直接做為 if 條件
-    if c then
-        // 嚴格型別：(int + int * int) > int => 產生 boolean 給 result
-        result := (a + b * LOCAL_MULTIPLIER) > 10;
+    // Testing Precedence, Unary Minus, and Modulo
+    // Expected: val = 10 -> 10 * 3 = 30 -> 30 / 2 = 15 -> 15 mod 4 = 3 -> -5 + 3 = -2
+    math_res := -5 + (val * 3) / 2 mod 4;
+
+    if math_res = EXPECTED_MATH then
+        writeln "Test 1 [Arithmetic Precedence]: Success";
     else
-    begin
-        const INNER_CONST = 10;
-        result := (b mod INNER_CONST) = 0; 
-    end;
+        writeln "Test 1 [Arithmetic Precedence]: Failed";
+
+    // Testing strict boolean evaluation and short-circuiting logic
+    // Expected: (-2 < 0) and true or not (10 = 10) -> true and true or false -> true
+    logic_res := (math_res < 0) and flag or not (val = 10);
     
-    return result;
-end LogicMagic;
+    if logic_res then
+        writeln "Test 2 [Boolean Logic]: Success";
+    else
+        writeln "Test 2 [Boolean Logic]: Failed";
+
+    return logic_res;
+end TestMathAndLogic;
 
 (* =======================================================
- * 3. 巢狀迴圈、Dangling-Else 與控制流極限
+ * Test 3: Insane Scope Shadowing
  * ======================================================= *)
-procedure DeepNesting(limit: integer);
-var i, j: integer = 123;
-var temp: boolean;
+procedure TestShadowing;
+var target: integer;
 begin
-    // 測試 For-loop，確保 counter 與 bounds 都通過 Integer 檢查
+    target := 100; // Level 1
+    begin
+        var target: integer; 
+        target := 200; // Level 2 (Shadows Level 1)
+        begin
+            var target: integer;
+            target := 300; // Level 3 (Shadows Level 2)
+            
+            if target = 300 then 
+                writeln "Test 3 [Deep Shadowing L3]: Success"; 
+            else 
+                writeln "Test 3 [Deep Shadowing L3]: Failed";
+        end;
+        
+        // Exited Level 3, target should be 200 again
+        if target = 200 then 
+            writeln "Test 4 [Scope Restoration L2]: Success"; 
+        else 
+            writeln "Test 4 [Scope Restoration L2]: Failed";
+    end;
+    
+    // Exited Level 2, target should be 100 again
+    if target = 100 then 
+        writeln "Test 5 [Scope Restoration L1]: Success"; 
+    else 
+        writeln "Test 5 [Scope Restoration L1]: Failed";
+end TestShadowing;
+
+(* =======================================================
+ * Test 4: Nested Loops & The Dangling-Else Trap
+ * ======================================================= *)
+procedure TestLoopsAndControlFlow(limit: integer);
+var i: integer;
+var sum: integer;
+begin
+    sum := 0;
+    
+    // 4.1 For Loop & Dangling Else Check
     for i := 1 to limit do
     begin
-        j := limit;
-        while j > 0 do
-        begin
-            repeat
-                // 終極 Dangling-Else 測試
-                if i > 5 then
-                    if j < 2 then
-                        writeln "Critical Depth Reached";
-                    else
-                        writeln "Going Deeper";
-                else
-                    temp := LogicMagic(i, j, IS_READY); // Function 做為 Rvalue 賦值
-                
-                j := j - 1;
-            until j <= 0; // 嚴格 Boolean 條件
-        end;
+        // if limit = 3, sum += 1 + 2 + 3 = 6
+        sum := sum + i;
+        
+        // The ultimate Dangling-Else test
+        if sum > 0 then
+            if sum = 999 then
+                writeln "Dangling Else Trap: Failed (Should not hit)";
+            else
+                sum := sum; // Dummy operation, binds to inner IF
+        // No else for the outer IF
     end;
-end DeepNesting;
 
-procedure ParamlessProc;
-const shadowFlag = "This procedure takes no arguments!"; // 字串只能是 const
-begin
-    writeln shadowFlag;
-end ParamlessProc;
+    if sum = 6 then 
+        writeln "Test 6 [For Loop & Dangling Else]: Success"; 
+    else 
+        writeln "Test 6 [For Loop & Dangling Else]: Failed";
+
+    // 4.2 While Loop Check
+    sum := 0;
+    i := 0;
+    while i < 3 do
+    begin
+        i := i + 1;
+        sum := sum + i;
+    end;
+    
+    if sum = 6 then 
+        writeln "Test 7 [While Loop]: Success"; 
+    else 
+        writeln "Test 7 [While Loop]: Failed";
+
+    // 4.3 Repeat-Until Loop Check
+    sum := 0;
+    i := 0;
+    repeat
+        i := i + 1;
+        sum := sum + i;
+    until i >= 3;
+    
+    if sum = 6 then 
+        writeln "Test 8 [Repeat-Until Loop]: Success"; 
+    else 
+        writeln "Test 8 [Repeat-Until Loop]: Failed";
+
+end TestLoopsAndControlFlow;
 
 (* =======================================================
- * 4. 主程式執行區塊與無情變數遮蔽 (Scope Shadowing)
+ * MAIN EXECUTION BLOCK
  * ======================================================= *)
 begin
-    writeln STR_CONST;
-    
-    g_int1 := 5;
-    g_int2 := 10;
-    
-    (* 測試 4.1：無參數 Subprogram 呼叫的兩種合法型態 *)
-    ParamlessProc;     // 沒括號
-    ParamlessProc();   // 有括號 (opt_invoke 產生 Dummy 節點後需正確驗證參數為空)
-    
-    (* 測試 4.2：瘋狂的 Block 變數遮蔽 (Shadowing) *)
-    begin
-        // 第一層遮蔽：將全域變數 g_int1 (var int) 遮蔽為常數 (const int)
-        const g_int1 = 777; 
-        // 第一層遮蔽：將全域變數 g_int2 (var int) 遮蔽為不同型別 (var boolean)
-        var g_int2: boolean = false;   
-        
-        g_int2 := true;
-        g_flag := (g_int1 > 100) and g_int2; // Const int 比較後與 Var boolean 做 AND
-        
-        writeln "Entering deepest scope...";
-        begin
-            // 第二層遮蔽：再次遮蔽 g_int1，這次變回變數，確保 Symbol Table 不會找錯層
-            var g_int1: integer = 8787; 
-            g_int1 := 9999;
-            
-            if g_int1 = 9999 then
-                writeln "Shadowing works perfectly!";
-        end;
-        // 離開第二層，g_int1 再次變回常數 777。印出中層的 boolean。
-        if g_int2 then
-            writeln "Middle scope intact.";
-    end;
-    // 離開所有 Local Scope，全域的 g_int1 (值為 5) 滿血復活。
-    
-    (* 測試 4.3：複雜布林邏輯與 Procedure Statement *)
-    if (g_int1 = 5) and (not IS_READY) or (initializedVar >= 900) then
-        DeepNesting(3); // Procedure 呼叫作為 Statement
+    writeln STR_START;
+
+    g_flag := TestMathAndLogic(10, true);
+
+    TestShadowing;
+
+    g_result := Factorial(5);
+    if g_result = 120 then
+        writeln "Test 9 [Recursive Function]: Success";
     else
-        writeln "Conditions not met.";
-        
-end UltimateTrickyTest.
+        writeln "Test 9 [Recursive Function]: Failed";
+
+    TestLoopsAndControlFlow(3);
+
+    writeln STR_END;
+end tricky.
