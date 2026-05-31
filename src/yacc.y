@@ -899,7 +899,7 @@ type:
 %%
 
 void yyerror(const char *msg) {
-    fprintf(stderr, "%02d: Semantic Error: %s\n", yylineno, msg);
+    fprintf(stderr, "%02d: %s\n", yylineno, msg);
 }
 
 int main(int argc, char** argv) {
@@ -919,7 +919,12 @@ void print_expr_jasm(ASTNode* expr) {
 
     switch (expr->node_type) {
         case AST_CONST_INT:
-            printf("    sipush %d\n", expr->as.expr.as.int_val); break;
+            if (expr->as.expr.as.int_val >= -32768 && expr->as.expr.as.int_val <= 32767) {
+                printf("    sipush %d\n", expr->as.expr.as.int_val);
+            } else {
+                printf("    ldc %d\n", expr->as.expr.as.int_val);
+            }
+            break;
         case AST_CONST_BOOL:
             printf("    %s\n", expr->as.expr.as.bool_val ? "iconst_1" : "iconst_0"); break;
         case AST_CONST_STR:

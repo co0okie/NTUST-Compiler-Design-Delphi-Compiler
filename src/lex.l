@@ -26,7 +26,7 @@ char *string_buf_ptr;
 %%
 
  /* include \r to avoid LF/CRLF problem */
-\r+
+\r+         {}
 [ \t]+      { LIST; }
 \n          { 
               if (Opt_S) printf("/* %2d: %-100s */\n", yylineno - 1, buf); 
@@ -34,7 +34,7 @@ char *string_buf_ptr;
             }
 
  /* single line comment */
-"//"[^\r]*  { LIST; }
+"//"[^\r\n]*  { LIST; }
 
  /* multi line comment */
 "(*"        { LIST; BEGIN(COMMENT); }
@@ -43,7 +43,7 @@ char *string_buf_ptr;
               if (Opt_S) printf("/* %2d: %-100s */\n", yylineno - 1, buf); 
               buf[0] = '\0'; 
             }
-<COMMENT>\r
+<COMMENT>\r {}
 <COMMENT>.  { LIST; }
 
 "program"   token(PROGRAM);
@@ -138,6 +138,7 @@ char *string_buf_ptr;
               if(Opt_T) printf("<string: %s>\n", string_buf);
               return STR_CONST;
             }
+<STRING>\r  {}
 <STRING>\n  {
               if (Opt_S) printf("/* %02d: %s */\n", yylineno - 1, buf); 
               printf("\n%02d: Lex Error: \\n is not allowed in string\n", yylineno - 1);
