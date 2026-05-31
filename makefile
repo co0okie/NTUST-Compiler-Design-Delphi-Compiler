@@ -52,7 +52,7 @@ src/y.tab.c src/y.tab.h: src/yacc.y
 	$(YACC) -o src/y.tab.c -d $<
 
 clean:
-	rm -f src/lex.yy.c src/y.tab.c y.tab.h $(PARSER) testcase/*.{jasm,class}
+	rm -f src/lex.yy.c src/y.tab.c src/y.tab.h $(PARSER) testcase/*.jasm testcase/*.class
 
 # 自動化驗證腳本
 verify: $(PARSER)

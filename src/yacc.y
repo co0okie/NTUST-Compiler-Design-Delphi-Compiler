@@ -81,7 +81,6 @@ typedef struct _Scope {
     Entry* order_tail;
     int local_index;
     DataType return_type; // for function/procedure
-    int has_return;
     struct _Scope *next; // outer scope
 } Scope;
 
@@ -126,7 +125,6 @@ void push_scope(int reset_local_index, DataType return_type) {
     new_scope->order_tail = NULL;
     new_scope->local_index = reset_local_index ? 0 : current_scope->local_index;
     new_scope->return_type = return_type;
-    new_scope->has_return = 0;
     new_scope->next = current_scope;
     current_scope = new_scope;
     Trace("Scope Pushed");
