@@ -1,0 +1,136 @@
+program NumberTheory;
+
+(* =======================================================
+ * 1. Perfect Numbers (完美數)
+ * A perfect number is a positive integer that is equal to 
+ * the sum of its proper divisors.
+ * Expected under 10000: 6, 28, 496, 8128
+ * ======================================================= *)
+procedure FindPerfectNumbers(limit: integer);
+var n, i, sum: integer;
+begin
+    writeln "1. Perfect Numbers up to limit:";
+    for n := 2 to limit do
+    begin
+        sum := 0;
+        for i := 1 to n - 1 do
+        begin
+            if (n mod i) = 0 then
+                sum := sum + i;
+        end;
+        
+        if sum = n then
+        begin
+            write "  Found perfect number: "; 
+            writeln n;
+        end;
+    end;
+end FindPerfectNumbers;
+
+(* =======================================================
+ * 2. Palindrome Numbers (迴文數)
+ * Reverses an integer and checks if it equals the original.
+ * ======================================================= *)
+function IsPalindrome(num: integer): boolean;
+var original, reversed, remainder: integer;
+begin
+    original := num;
+    reversed := 0;
+    
+    while num > 0 do
+    begin
+        remainder := num mod 10;
+        reversed := (reversed * 10) + remainder;
+        num := num / 10;
+    end;
+    
+    return original = reversed;
+end IsPalindrome;
+
+(* =======================================================
+ * 3. Armstrong Numbers (阿姆斯壯數/水仙花數)
+ * Finds all 3-digit numbers where the sum of the cubes 
+ * of their digits equals the number itself.
+ * Expected: 153, 370, 371, 407
+ * ======================================================= *)
+procedure FindArmstrongNumbers;
+var n, sum, temp, digit: integer;
+begin
+    writeln "3. 3-Digit Armstrong Numbers:";
+    for n := 100 to 999 do
+    begin
+        sum := 0;
+        temp := n;
+        
+        while temp > 0 do
+        begin
+            digit := temp mod 10;
+            // Add the cube of the digit
+            sum := sum + (digit * digit * digit);
+            temp := temp / 10;
+        end;
+        
+        if sum = n then
+        begin
+            write "  Armstrong number: "; 
+            writeln n;
+        end;
+    end;
+end FindArmstrongNumbers;
+
+(* =======================================================
+ * 4. Prime Factorization (質因數分解)
+ * Computes and prints the prime factors of a number.
+ * ======================================================= *)
+procedure PrimeFactors(n: integer);
+var divisor: integer;
+begin
+    write "4. Prime factors of "; 
+    write n; 
+    write ": ";
+    
+    divisor := 2;
+    while n > 1 do
+    begin
+        while (n mod divisor) = 0 do
+        begin
+            write divisor; 
+            write " ";
+            n := n / divisor;
+        end;
+        divisor := divisor + 1;
+    end;
+    writeln "";
+end PrimeFactors;
+
+
+(* =======================================================
+ * MAIN EXECUTION BLOCK
+ * ======================================================= *)
+begin
+    writeln "=== NUMBER THEORY SHOWCASE ===";
+    writeln "------------------------------";
+    
+    // Test 1: Perfect Numbers (This might take a second to run!)
+    FindPerfectNumbers(10000);
+    writeln "------------------------------";
+    
+    // Test 2: Palindrome Checks
+    writeln "2. Palindrome Numbers Test:";
+    write "  Is 1234321 palindrome? "; 
+    writeln IsPalindrome(1234321); // Expected: true
+    write "  Is 1234567 palindrome? "; 
+    writeln IsPalindrome(1234567); // Expected: false
+    writeln "------------------------------";
+    
+    // Test 3: Armstrong Numbers
+    FindArmstrongNumbers();
+    writeln "------------------------------";
+    
+    // Test 4: Prime Factorization
+    PrimeFactors(315);  // Expected: 3 3 5 7
+    PrimeFactors(1024); // Expected: 2 2 2 2 2 2 2 2 2 2
+    
+    writeln "------------------------------";
+    writeln "=== SHOWCASE COMPLETED ===";
+end NumberTheory.

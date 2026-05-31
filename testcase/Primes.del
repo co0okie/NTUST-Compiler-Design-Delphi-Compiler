@@ -1,0 +1,60 @@
+program Primes;
+
+(* =======================================================
+ * Configuration
+ * ======================================================= *)
+const MAX_LIMIT = 10000;
+
+(* =======================================================
+ * Function to check if a number is prime
+ * Uses trial division up to the square root of n
+ * ======================================================= *)
+function IsPrime(n: integer): boolean;
+var i: integer = 2;
+var is_p: boolean = true;
+begin
+    if n < 2 then
+        return false;
+
+    // Loop until i * i > n or we found a divisor
+    while (i * i <= n) and is_p do
+    begin
+        if (n mod i) = 0 then
+            is_p := false;
+        
+        i := i + 1;
+    end;
+    
+    return is_p;
+end IsPrime;
+
+(* =======================================================
+ * Procedure to print all primes under a certain limit
+ * ======================================================= *)
+procedure PrintPrimes(limit: integer);
+var num: integer;
+begin
+    write "Primes under ";
+    write limit;
+    writeln ":";
+    
+    for num := 2 to limit - 1 do
+    begin
+        if IsPrime(num) then
+        begin
+            // Print the prime number followed by a space
+            write num;
+            write " ";
+        end;
+    end;
+    
+    // Print a newline at the end
+    writeln "";
+end PrintPrimes;
+
+(* =======================================================
+ * MAIN EXECUTION BLOCK
+ * ======================================================= *)
+begin
+    PrintPrimes(MAX_LIMIT);
+end Primes.

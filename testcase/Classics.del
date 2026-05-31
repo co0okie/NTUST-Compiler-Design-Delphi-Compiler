@@ -1,0 +1,101 @@
+program Classics;
+
+(* =======================================================
+ * 1. 冰雹猜想 (Collatz Conjecture)
+ * ======================================================= *)
+procedure Collatz(n: integer);
+var steps: integer = 0;
+begin
+    write "Collatz Sequence for "; writeln n;
+    while n > 1 do
+    begin
+        write n; write " -> ";
+        if (n mod 2) = 0 then
+            n := n / 2;
+        else
+            n := (3 * n) + 1;
+        steps := steps + 1;
+    end;
+    writeln 1;
+    write "Total steps: "; writeln steps;
+    writeln "-----------------------------";
+end Collatz;
+
+(* =======================================================
+ * 2. 河內塔 (Tower of Hanoi)
+ * ======================================================= *)
+// 將 n 個圓盤從 src 柱子，透過 aux 柱子，移動到 dst 柱子
+procedure Hanoi(n: integer, src: integer, aux: integer, dst: integer);
+begin
+    if n = 1 then
+    begin
+        write "Move disk 1 from peg "; write src; write " to peg "; writeln dst;
+    end; // 注意：在你的 parser 規則中，else 前的 block_stmt 必須要有分號！
+    else
+    begin
+        Hanoi(n - 1, src, dst, aux);
+        write "Move disk "; write n; write " from peg "; write src; write " to peg "; writeln dst;
+        Hanoi(n - 1, aux, src, dst);
+    end;
+end Hanoi;
+
+(* =======================================================
+ * 3. 巢狀迴圈：字元金字塔 (ASCII Pyramid)
+ * ======================================================= *)
+procedure PrintPyramid(height: integer);
+var i, j, spaces, stars: integer;
+begin
+    writeln "ASCII Pyramid:";
+    for i := 1 to height do
+    begin
+        spaces := height - i;
+        stars := (2 * i) - 1;
+
+        // 印出前面的空白
+        for j := 1 to spaces do
+            write " ";
+
+        // 印出星星
+        for j := 1 to stars do
+            write "*";
+
+        writeln "";
+    end;
+    writeln "-----------------------------";
+end PrintPyramid;
+
+(* =======================================================
+ * 4. 輾轉相除法求最大公因數 (GCD)
+ * ======================================================= *)
+function GCD(a: integer, b: integer): integer;
+begin
+    if b = 0 then
+        return a;
+    else
+        return GCD(b, a mod b);
+end GCD;
+
+(* =======================================================
+ * MAIN EXECUTION BLOCK
+ * ======================================================= *)
+begin
+    writeln "=== DELPHI COMPILER CLASSIC DEMOS ===";
+    
+    // 執行冰雹猜想 (起始值 27 會跑高達 111 步才回到 1！)
+    Collatz(27);
+    
+    // 執行河內塔 (3層)
+    writeln "Tower of Hanoi (3 disks):";
+    Hanoi(3, 1, 2, 3);
+    writeln "-----------------------------";
+    
+    // 印出 5 層高的金字塔
+    PrintPyramid(5);
+    
+    // 執行最大公因數計算
+    write "GCD of 1071 and 462 is: ";
+    writeln GCD(1071, 462);
+    writeln "-----------------------------";
+    
+    writeln "All Demos Completed Successfully!";
+end Classics.

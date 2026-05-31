@@ -16,6 +16,9 @@ TEST_DIR=testcase
 # TEST=fib
 # TEST=sigma
 TEST=tricky
+# TEST=Primes
+# TEST=Classics
+# TEST=NumberTheory
 TESTCASE=$(TEST_DIR)/$(TEST).del
 JASM=$(TEST_DIR)/$(TEST).jasm
 CLASS=$(TEST_DIR)/$(TEST).class
@@ -37,7 +40,7 @@ jasm: $(JASM)
 	cd $(@D); $(JAVAA) $(notdir $<)
 
 %.jasm: %.del $(PARSER)
-	$(PARSER) < $< > $@
+	$(PARSER) < $< | tee $@
 
 $(PARSER): src/lex.yy.c src/y.tab.c $(SRCS)
 	$(CC) $^ -o $(PARSER)

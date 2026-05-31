@@ -1,17 +1,42 @@
 program tricky;
 
 (* =======================================================
- * Constant Folding & Global Initialization
+ * Global Declarations & Compile-Time Evaluation
  * ======================================================= *)
-const EXPECTED_MATH = -2;
-const STR_START = "--- Starting Extreme JVM Tests ---";
+const STR_START = "--- Starting Extreme Syntax & JVM Tests ---";
 const STR_END = "--- All Tests Executed ---";
+const EXPECTED_MATH = -4;
+const FLAG_CONST = not false and true; // Boolean expression in const
 
-var g_result: integer;
-var g_flag: boolean;
+// id_list test
+var g_result, g_counter: integer; 
+// opt_init test in global
+var g_flag: boolean = true;       
 
 (* =======================================================
- * Test 1: Deep Recursion (JVM Stack Frame Integrity)
+ * Test 1: Parameterless Procedure & Empty Return
+ * ======================================================= *)
+procedure EmptyProc;
+begin
+    write "Test 1 [EmptyProc]: ";
+    writeln "Executed!";
+    return; // Explicit empty return (TYPE_VOID)
+end EmptyProc;
+
+(* =======================================================
+ * Test 2: Complex Arithmetic (+, -, *, /, mod, unary -)
+ * ======================================================= *)
+function ComplexMath(a: integer, b: integer): integer;
+// opt_init test in local scope
+var local_var: integer = 10;
+begin
+    // Testing Precedence, Unary Minus, and Modulo
+    // Expected: a=10, b=5 -> -5 + (10 * 5) / 2 mod 4 = -5 + 25 mod 4 = -5 + 1 = -4
+    return -5 + (a * b) / 2 mod 4;
+end ComplexMath;
+
+(* =======================================================
+ * Test 3: Deep Recursion (JVM Stack Integrity)
  * ======================================================= *)
 function Factorial(n: integer): integer;
 begin
@@ -22,124 +47,101 @@ begin
 end Factorial;
 
 (* =======================================================
- * Test 2: Complex Arithmetic & Strict Boolean Logic
+ * Test 4: Relational & Logical Operators (<, <=, >, >=, =, <>, and, or, not)
  * ======================================================= *)
-function TestMathAndLogic(val: integer, flag: boolean): boolean;
-var math_res: integer;
-var logic_res: boolean;
+function TestLogic(val: integer): boolean;
+var b1, b2: boolean;
 begin
-    // Testing Precedence, Unary Minus, and Modulo
-    // Expected: val = 10 -> 10 * 3 = 30 -> 30 / 2 = 15 -> 15 mod 4 = 3 -> -5 + 3 = -2
-    math_res := -5 + (val * 3) / 2 mod 4;
-
-    if math_res = EXPECTED_MATH then
-        writeln "Test 1 [Arithmetic Precedence]: Success";
-    else
-        writeln "Test 1 [Arithmetic Precedence]: Failed";
-
-    // Testing strict boolean evaluation and short-circuiting logic
-    // Expected: (-2 < 0) and true or not (10 = 10) -> true and true or false -> true
-    logic_res := (math_res < 0) and flag or not (val = 10);
+    // Expected: val=15 -> b1 = (true and false or false) = false
+    // b2 = (true or true and true) = true
+    b1 := (val <> 0) and (val < 10) or not (val >= 5);
+    b2 := (val = 15) or (val <= 20) and (val > 0);
     
-    if logic_res then
-        writeln "Test 2 [Boolean Logic]: Success";
+    if b1 or b2 then
+        return true;
     else
-        writeln "Test 2 [Boolean Logic]: Failed";
-
-    return logic_res;
-end TestMathAndLogic;
+        return false;
+end TestLogic;
 
 (* =======================================================
- * Test 3: Insane Scope Shadowing
+ * Test 5: All Loops (For, While, Repeat) & Dangling-Else
+ * ======================================================= *)
+procedure TestControlFlow(limit: integer);
+var i: integer;
+var sum: integer = 0;
+begin
+    // FOR Loop Test
+    for i := 1 to limit do
+    begin
+        sum := sum + i;
+    end; // sum = 1+2+3+4+5 = 15
+
+    // WHILE Loop Test
+    while sum > 10 do
+        sum := sum - 1; // sum stops at 10
+
+    // REPEAT-UNTIL Loop Test
+    repeat
+        sum := sum * 2; // 10*2 = 20
+    until sum >= 20;
+
+    // Nested IF-THEN-ELSE (Dangling Else Trap)
+    // Note: Semicolons are required before 'else' according to our yacc grammar!
+    if sum >= 20 then
+        if sum = 999 then
+            writeln "Test 5 [Control Flow]: Failed (Dangling Else Trap)";
+        else
+            writeln "Test 5 [Control Flow]: Success";
+    else
+        writeln "Test 5 [Control Flow]: Failed";
+end TestControlFlow;
+
+(* =======================================================
+ * Test 6: Insane Scope Shadowing & Block Statements
  * ======================================================= *)
 procedure TestShadowing;
-var target: integer;
+var x: integer = 1;
 begin
-    target := 100; // Level 1
-    begin
-        var target: integer; 
-        target := 200; // Level 2 (Shadows Level 1)
-        begin
-            var target: integer;
-            target := 300; // Level 3 (Shadows Level 2)
-            
-            if target = 300 then 
-                writeln "Test 3 [Deep Shadowing L3]: Success"; 
-            else 
-                writeln "Test 3 [Deep Shadowing L3]: Failed";
-        end;
-        
-        // Exited Level 3, target should be 200 again
-        if target = 200 then 
-            writeln "Test 4 [Scope Restoration L2]: Success"; 
-        else 
-            writeln "Test 4 [Scope Restoration L2]: Failed";
+    // Anonymous block testing
+    begin 
+        // local index should correctly assign and hide outer 'x'
+        var x: integer = 2; 
+        if x = 2 then
+            writeln "Test 6 [Shadowing L2]: Success";
+        else
+            writeln "Test 6 [Shadowing L2]: Failed";
     end;
     
-    // Exited Level 2, target should be 100 again
-    if target = 100 then 
-        writeln "Test 5 [Scope Restoration L1]: Success"; 
-    else 
-        writeln "Test 5 [Scope Restoration L1]: Failed";
+    // Original 'x' should be restored
+    if x = 1 then
+        writeln "Test 6 [Shadowing L1]: Success";
+    else
+        writeln "Test 6 [Shadowing L1]: Failed";
 end TestShadowing;
 
 (* =======================================================
- * Test 4: Nested Loops & The Dangling-Else Trap
+ * Test 7: Direct Print Types (Int, Bool, Expr)
  * ======================================================= *)
-procedure TestLoopsAndControlFlow(limit: integer);
-var i: integer;
-var sum: integer;
+procedure TestPrintTypes;
+var print_int: integer = 999;
+var print_bool: boolean = false;
 begin
-    sum := 0;
+    write "Test 7 [Print Int Constant]: ";
+    writeln 777;
     
-    // 4.1 For Loop & Dangling Else Check
-    for i := 1 to limit do
-    begin
-        // if limit = 3, sum += 1 + 2 + 3 = 6
-        sum := sum + i;
-        
-        // The ultimate Dangling-Else test
-        if sum > 0 then
-            if sum = 999 then
-                writeln "Dangling Else Trap: Failed (Should not hit)";
-            else
-                sum := sum; // Dummy operation, binds to inner IF
-        // No else for the outer IF
-    end;
-
-    if sum = 6 then 
-        writeln "Test 6 [For Loop & Dangling Else]: Success"; 
-    else 
-        writeln "Test 6 [For Loop & Dangling Else]: Failed";
-
-    // 4.2 While Loop Check
-    sum := 0;
-    i := 0;
-    while i < 3 do
-    begin
-        i := i + 1;
-        sum := sum + i;
-    end;
+    write "Test 7 [Print Int Variable]: ";
+    writeln print_int;
     
-    if sum = 6 then 
-        writeln "Test 7 [While Loop]: Success"; 
-    else 
-        writeln "Test 7 [While Loop]: Failed";
-
-    // 4.3 Repeat-Until Loop Check
-    sum := 0;
-    i := 0;
-    repeat
-        i := i + 1;
-        sum := sum + i;
-    until i >= 3;
+    write "Test 7 [Print Bool Constant]: ";
+    writeln true;
     
-    if sum = 6 then 
-        writeln "Test 8 [Repeat-Until Loop]: Success"; 
-    else 
-        writeln "Test 8 [Repeat-Until Loop]: Failed";
+    write "Test 7 [Print Bool Variable]: ";
+    writeln print_bool;
 
-end TestLoopsAndControlFlow;
+    write "Test 7 [Print Complex Expr]: ";
+    writeln (print_int mod 100) > 50; // Should print true (99 > 50)
+end TestPrintTypes;
+
 
 (* =======================================================
  * MAIN EXECUTION BLOCK
@@ -147,17 +149,39 @@ end TestLoopsAndControlFlow;
 begin
     writeln STR_START;
 
-    g_flag := TestMathAndLogic(10, true);
+    // Test parameterless invocation (both with and without parentheses)
+    EmptyProc();
+    EmptyProc;
 
-    TestShadowing;
+    // Arithmetic Test
+    g_result := ComplexMath(10, 5);
+    if g_result = EXPECTED_MATH then
+        writeln "Test 2 [Math]: Success";
+    else
+        writeln "Test 2 [Math]: Failed";
 
+    // Recursion Test
     g_result := Factorial(5);
     if g_result = 120 then
-        writeln "Test 9 [Recursive Function]: Success";
+        writeln "Test 3 [Recursion]: Success";
     else
-        writeln "Test 9 [Recursive Function]: Failed";
+        writeln "Test 3 [Recursion]: Failed";
 
-    TestLoopsAndControlFlow(3);
+    // Logic Test
+    g_flag := TestLogic(15);
+    if g_flag = true then
+        writeln "Test 4 [Logic]: Success";
+    else
+        writeln "Test 4 [Logic]: Failed";
+
+    // Loops & Control Flow Test
+    TestControlFlow(5); 
+
+    // Scope Shadowing Test
+    TestShadowing;
+    
+    // Direct output testing
+    TestPrintTypes;
 
     writeln STR_END;
 end tricky.

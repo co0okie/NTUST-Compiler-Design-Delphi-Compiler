@@ -1,32 +1,41 @@
 (* fib.delphi
  *
- * This test program computes the Nth Fibonacci number
+ * This test program computes and prints the first N Fibonacci numbers
  *)
 
 program fib;
 
     // constant
-    const N = 8;
+    const N = 40;
 
     // variables
-    var n, Fn, FNminus1, temp: integer;
+    var i, Fn, FNminus1, temp: integer;
 
 begin
     // variable initialization
-    n := N;
     Fn := 1;
-    FNminus1 := 1;
+    FNminus1 := 0;
 
-    // compute the nth Fibonacci number
-    while (n > 2) do
+    write "Printing the first ";
+    write N;
+    writeln " Fibonacci numbers:";
+    writeln "-----------------------------------";
+
+    // compute and print continuously
+    for i := 1 to N do
     begin
-      temp := Fn;
-      Fn := Fn + FNminus1;
-      FNminus1 := temp;
-      n := n - 1;
-    end;
+        // Print current Fibonacci number
+        write "Fib("; 
+        write i; 
+        write ") = ";
+        writeln Fn;
 
-    // print result
-    write "Result of computation: ";
-    writeln n;
+        // Calculate the next Fibonacci number
+        temp := Fn;
+        Fn := Fn + FNminus1;
+        FNminus1 := temp;
+    end;
+    
+    writeln "-----------------------------------";
+    writeln "Computation finished.";
 end fib.
