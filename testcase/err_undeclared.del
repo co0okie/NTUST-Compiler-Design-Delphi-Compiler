@@ -1,5 +1,4 @@
-program UndeclaredErr;
+program err_undeclared;
 begin
-    // 預期 Semantic Error: Undeclared identifier 'x'
-    x := 10; 
-end UndeclaredErr.
+    x := 10;
+end err_undeclared.

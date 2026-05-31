@@ -1,0 +1,7 @@
+program err_proc_return_type;
+procedure foo;
+begin
+    return 1;
+end foo;
+begin
+end err_proc_return_type.

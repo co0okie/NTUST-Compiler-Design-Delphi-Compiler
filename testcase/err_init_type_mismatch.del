@@ -1,0 +1,4 @@
+program err_init_type_mismatch;
+var i: integer = false;
+begin
+end err_init_type_mismatch.

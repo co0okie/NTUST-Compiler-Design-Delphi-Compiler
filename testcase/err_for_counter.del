@@ -1,0 +1,6 @@
+program err_for_counter;
+var b: boolean;
+begin
+    for b := 1 to 10 do
+        writeln 1;
+end err_for_counter.

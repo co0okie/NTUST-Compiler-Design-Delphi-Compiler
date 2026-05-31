@@ -1,0 +1,6 @@
+program err_for_bound;
+var i: integer;
+begin
+    for i := 1 to true do
+        writeln 1;
+end err_for_bound.

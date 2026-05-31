@@ -1,6 +1,5 @@
-program ConstAssignErr;
+program err_const_assign;
 const MAX = 100;
 begin
-    // 預期 Semantic Error: Cannot assign to constant 'MAX'
     MAX := 200; 
-end ConstAssignErr.
+end err_const_assign.

@@ -1,6 +1,0 @@
-program DoubleDeclErr;
-var a: integer;
-var a: real; // 預期 Semantic Error: Identifier 'a' is already declared.
-begin
-    a := 5;
-end DoubleDeclErr.

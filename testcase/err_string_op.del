@@ -1,0 +1,4 @@
+program err_string_op;
+const s = "Hello" + "World";
+begin
+end err_string_op.

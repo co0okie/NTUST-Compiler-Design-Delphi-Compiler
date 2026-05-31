@@ -1,0 +1,7 @@
+program err_func_end_unmatch;
+function foo: integer;
+begin
+    return 1;
+end bar;
+begin
+end err_func_end_unmatch.

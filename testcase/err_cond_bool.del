@@ -1,0 +1,5 @@
+program err_cond_bool;
+begin
+    if 1 then
+        writeln "Failed";
+end err_cond_bool.

@@ -1,0 +1,6 @@
+program err_proc_end_unmatch;
+procedure foo;
+begin
+end bar;
+begin
+end err_proc_end_unmatch.

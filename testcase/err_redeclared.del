@@ -1,0 +1,5 @@
+program err_redeclared;
+var x: integer;
+var x: boolean;
+begin
+end err_redeclared.

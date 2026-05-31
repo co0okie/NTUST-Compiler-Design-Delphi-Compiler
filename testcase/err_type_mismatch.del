@@ -1,7 +1,5 @@
-program TypeMismatchWarn;
+program err_type_mismatch;
 var x: integer;
-var y: string;
 begin
-    // 預期 Semantic Warning: Type mismatch in assignment.
     x := "Hello"; 
-end TypeMismatchWarn.
+end err_type_mismatch.

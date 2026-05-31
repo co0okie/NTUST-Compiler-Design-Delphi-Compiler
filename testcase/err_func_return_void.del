@@ -1,0 +1,7 @@
+program err_func_return_void;
+function foo: integer;
+begin
+    return;
+end foo;
+begin
+end err_func_return_void.
